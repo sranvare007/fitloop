@@ -345,9 +345,12 @@ export function SessionScreen({ routine, onExit, onSave }: { routine: Routine | 
 
       {/* Keypad */}
       {keypadOpen && (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
-          <KeypadBar t={t} field={field} step={field === 'reps' ? 1 : fmt.step} onKey={onKey} onClose={() => setField(null)} />
-        </View>
+        <>
+          <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={() => setField(null)} />
+          <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
+            <KeypadBar t={t} field={field} step={field === 'reps' ? 1 : fmt.step} onKey={onKey} onClose={() => setField(null)} />
+          </View>
+        </>
       )}
 
       {/* Exercise menu */}
