@@ -315,7 +315,7 @@ export async function loadAllExerciseNames(): Promise<string[]> {
 export async function loadMeasurements(cutoffMs = 0): Promise<Measurement[]> {
   const d = await db();
   const rows = await d.getAllAsync<Measurement>(
-    'SELECT * FROM measurements WHERE at >= ? ORDER BY at ASC', [cutoffMs]
+    'SELECT id, at, weight_kg AS weightKg, body_fat AS bodyFat FROM measurements WHERE at >= ? ORDER BY at ASC', [cutoffMs]
   );
   return rows;
 }

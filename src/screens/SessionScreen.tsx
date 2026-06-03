@@ -8,8 +8,8 @@ import { Routine, SEED_PB, KNOWN_EXERCISES, fmtClock, fmtDur, uid, sessionVolume
 
 function KeypadBar({ t, field, onKey, onClose, step }: any) {
   const Key = ({ label, onPress, accent, big }: any) => (
-    <Pressable onPress={onPress} style={({ pressed }) => [{ height: 50, borderRadius: 13, backgroundColor: accent ? t.lime : t.elev, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 }]}>
-      <Text style={{ fontWeight: '800', fontSize: big ? 15 : 23, color: accent ? t.onLime : t.text }}>{label}</Text>
+    <Pressable onPress={onPress} style={({ pressed }) => [{ height: 62, borderRadius: 14, backgroundColor: accent ? t.lime : t.elev, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.75 : 1 }]}>
+      <Text style={{ fontWeight: '800', fontSize: big ? 16 : 24, color: accent ? t.onLime : t.text }}>{label}</Text>
     </Pressable>
   );
   return (
@@ -18,32 +18,33 @@ function KeypadBar({ t, field, onKey, onClose, step }: any) {
         <Text style={{ fontSize: 13, fontWeight: '800', color: t.mut, letterSpacing: 0.3 }}>
           Editing <Text style={{ color: t.orange }}>{field === 'reps' ? 'REPS' : 'WEIGHT'}</Text>
         </Text>
-        <Pressable onPress={onClose} style={{ backgroundColor: t.lime, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 11 }}>
-          <Text style={{ fontWeight: '800', fontSize: 13.5, color: t.onLime }}>Done</Text>
+        <Pressable onPress={onClose} style={{ backgroundColor: t.lime, paddingVertical: 8, paddingHorizontal: 22, borderRadius: 12 }}>
+          <Text style={{ fontWeight: '800', fontSize: 14, color: t.onLime }}>Done</Text>
         </Pressable>
       </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+      <View style={{ flexDirection: 'column', gap: 8 }}>
         {/* Row 1 */}
-        <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
           {['1','2','3'].map(d => <View key={d} style={{ flex: 1 }}><Key label={d} onPress={() => onKey(d)} /></View>)}
           <View style={{ flex: 1 }}><Key label={`+${step}`} onPress={() => onKey('inc')} accent big /></View>
         </View>
         {/* Row 2 */}
-        <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
           {['4','5','6'].map(d => <View key={d} style={{ flex: 1 }}><Key label={d} onPress={() => onKey(d)} /></View>)}
           <View style={{ flex: 1 }}><Key label={`−${step}`} onPress={() => onKey('dec')} big /></View>
         </View>
         {/* Row 3 */}
-        <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
           {['7','8','9'].map(d => <View key={d} style={{ flex: 1 }}><Key label={d} onPress={() => onKey(d)} /></View>)}
           <View style={{ flex: 1 }}><Key label="DEL" onPress={() => onKey('del')} big /></View>
         </View>
         {/* Row 4 */}
-        <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
-          <View style={{ flex: 1 }}><Key label={field === 'kg' ? '.' : ''} onPress={() => field === 'kg' && onKey('.')} /></View>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            {field === 'kg' ? <Key label="." onPress={() => onKey('.')} /> : <View style={{ height: 62 }} />}
+          </View>
           <View style={{ flex: 1 }}><Key label="0" onPress={() => onKey('0')} /></View>
-          <View style={{ flex: 1 }} />
-          <View style={{ flex: 1 }} />
+          <View style={{ flex: 2 }} />
         </View>
       </View>
     </View>
