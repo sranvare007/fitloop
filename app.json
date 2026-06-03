@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "fitloop",
+    "name": "Fitloop",
     "slug": "fitloop",
     "version": "1.0.0",
     "orientation": "default",
@@ -30,7 +30,9 @@
           "backgroundColor": "#ffffff",
           "image": "./assets/splash-icon.png"
         }
-      ]
+      ],
+      "expo-sqlite",
+      "expo-font"
     ]
   }
 }

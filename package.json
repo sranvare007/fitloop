@@ -9,16 +9,21 @@
     "ios": "expo run:ios"
   },
   "dependencies": {
+    "@expo-google-fonts/hanken-grotesk": "^0.4.3",
     "@expo/metro-runtime": "~55.0.6",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.15.12",
     "@react-navigation/elements": "^2.9.16",
     "@react-navigation/native": "^7.2.3",
     "@react-navigation/native-stack": "^7.14.13",
     "expo": "^55.0.7",
     "expo-asset": "~55.0.9",
+    "expo-crypto": "~55.0.15",
     "expo-dev-client": "~55.0.17",
+    "expo-font": "~55.0.8",
     "expo-linking": "~55.0.7",
     "expo-splash-screen": "~55.0.11",
+    "expo-sqlite": "~55.0.16",
     "expo-system-ui": "~55.0.10",
     "react": "19.2.0",
     "react-dom": "19.2.0",
@@ -26,6 +31,7 @@
     "react-native-gesture-handler": "~2.30.0",
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.23.0",
+    "react-native-svg": "15.15.3",
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
