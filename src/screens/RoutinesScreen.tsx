@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Pressable, ScrollView, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { useApp } from '../context';
 import { Btn, IconBtn, Chip, Sheet, MenuRow, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
@@ -11,15 +11,62 @@ import { Routine, dayLabel, uid, ROUTINE_COLORS, DAYS } from '../data';
 const GAP = 7;
 const ROW_H = 50;
 const CELL_H = ROW_H + GAP;
+const GRIP_HIT = 44; // px from left edge that counts as grip area
 
 type ExItem = { id: string; name: string };
 
+// Top-level so it never remounts between renders of SortableExerciseList
+function ExRow({ item, index, isDragging, isGhost, t, editingId, editingName, setEditingName, startEdit, confirmEdit, removeEx }: any) {
+  const isEditing = !isGhost && editingId === item.id;
+  return (
+    <View style={{
+      flexDirection: 'row', alignItems: 'center', gap: 9, height: ROW_H,
+      backgroundColor: isEditing ? t.surface2 : t.surface,
+      borderRadius: 13, paddingHorizontal: 11,
+      borderWidth: 1, borderColor: isEditing ? t.line : t.line2,
+      opacity: isDragging ? 0 : 1,
+    }}>
+      <View style={{ padding: 4 }}>
+        <Icon name="grip" size={18} color={isEditing ? t.mut2 : t.mut} sw={2} />
+      </View>
+      <View style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut }}>{index + 1}</Text>
+      </View>
+      {isEditing ? (
+        <TextInput
+          value={editingName}
+          onChangeText={setEditingName}
+          onSubmitEditing={() => confirmEdit(item.id)}
+          autoFocus
+          returnKeyType="done"
+          style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: 15.5, padding: 0 }}
+        />
+      ) : (
+        <Pressable onPress={() => startEdit(item.id, item.name)} style={{ flex: 1 }}>
+          <Text numberOfLines={1} style={{ fontSize: 15.5, fontWeight: '700', color: t.text }}>{item.name}</Text>
+        </Pressable>
+      )}
+      {isEditing && (
+        <Pressable onPress={() => confirmEdit(item.id)} style={{ padding: 4 }}>
+          <Icon name="check" size={17} color={t.limeInk} sw={2.6} />
+        </Pressable>
+      )}
+      {!isGhost && (
+        <Pressable onPress={() => removeEx(item.id)} style={{ padding: 4 }}>
+          <Icon name="x" size={16} color={t.mut2} sw={2.2} />
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 function SortableExerciseList({ exs, setExs, t, editingId, startEdit, confirmEdit, editingName, setEditingName, removeEx, onDragStart, onDragEnd }: any) {
-  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [draggingIdx, setDraggingIdx] = useState(-1);
   const ghostY = useSharedValue(0);
-  const activeIndex = useSharedValue(-1);
-  const listAbsY = useSharedValue(0);
-  const listRef = useRef<View>(null);
+  const activeIdx = useSharedValue(-1);
+  const itemCount = useSharedValue(exs.length);
+
+  useEffect(() => { itemCount.value = exs.length; }, [exs.length]);
 
   const ghostStyle = useAnimatedStyle(() => ({
     position: 'absolute' as const,
@@ -28,116 +75,80 @@ function SortableExerciseList({ exs, setExs, t, editingId, startEdit, confirmEdi
     zIndex: 100,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
     elevation: 8,
   }));
 
-  const beginDrag = (id: string, idx: number) => {
-    setDraggingId(id);
-    onDragStart?.();
-    activeIndex.value = idx;
-  };
-  const endDrag = () => { setDraggingId(null); onDragEnd?.(); };
-
-  const commitSwap = (fromIdx: number, toIdx: number) => {
+  const beginDrag = (idx: number) => { setDraggingIdx(idx); onDragStart?.(); };
+  const endDrag = () => { setDraggingIdx(-1); onDragEnd?.(); };
+  const commitSwap = (from: number, to: number) => {
     setExs((prev: ExItem[]) => {
       const arr = [...prev];
-      const [item] = arr.splice(fromIdx, 1);
-      arr.splice(toIdx, 0, item);
+      const [item] = arr.splice(from, 1);
+      arr.splice(to, 0, item);
       return arr;
     });
   };
 
-  const draggingItem = draggingId ? exs.find((e: ExItem) => e.id === draggingId) : null;
+  // Single stable gesture on the whole list — no per-item recreations.
+  // Uses e.y (relative to this view) so the calc stays correct even after
+  // the outer ScrollView has been scrolled (absoluteY would be stale).
+  const gesture = Gesture.Pan()
+    .activateAfterLongPress(200)
+    .onStart((e) => {
+      'worklet';
+      if (e.x > GRIP_HIT) return; // only grip handle column activates drag
+      const idx = Math.floor(e.y / CELL_H);
+      if (idx < 0 || idx >= itemCount.value) return;
+      activeIdx.value = idx;
+      ghostY.value = idx * CELL_H;
+      runOnJS(beginDrag)(idx);
+    })
+    .onUpdate((e) => {
+      'worklet';
+      if (activeIdx.value < 0) return;
+      ghostY.value = Math.max(0, Math.min(e.y - ROW_H / 2, (itemCount.value - 1) * CELL_H));
+      const target = Math.max(0, Math.min(Math.round(e.y / CELL_H), itemCount.value - 1));
+      if (target !== activeIdx.value) {
+        runOnJS(commitSwap)(activeIdx.value, target);
+        activeIdx.value = target;
+      }
+    })
+    .onEnd(() => {
+      'worklet';
+      if (activeIdx.value < 0) return;
+      ghostY.value = withSpring(activeIdx.value * CELL_H, { damping: 20, stiffness: 300 });
+      activeIdx.value = -1;
+      runOnJS(endDrag)();
+    })
+    .onFinalize(() => {
+      'worklet';
+      if (activeIdx.value >= 0) { activeIdx.value = -1; runOnJS(endDrag)(); }
+    });
 
-  const makeGesture = (id: string, index: number) =>
-    Gesture.Pan()
-      .activateAfterLongPress(200)
-      .onStart(() => {
-        'worklet';
-        ghostY.value = index * CELL_H;
-        runOnJS(beginDrag)(id, index);
-      })
-      .onUpdate((e) => {
-        'worklet';
-        const relY = e.absoluteY - listAbsY.value;
-        ghostY.value = Math.max(0, relY - ROW_H / 2);
-        const targetIdx = Math.max(0, Math.min(Math.round(relY / CELL_H), 20));
-        if (targetIdx !== activeIndex.value) {
-          runOnJS(commitSwap)(activeIndex.value, targetIdx);
-          activeIndex.value = targetIdx;
-        }
-      })
-      .onEnd(() => {
-        'worklet';
-        ghostY.value = withSpring(activeIndex.value * CELL_H, { damping: 20, stiffness: 300 });
-        runOnJS(endDrag)();
-      });
-
-  const ExRow = ({ item, index, isGhost = false }: { item: ExItem; index: number; isGhost?: boolean }) => {
-    const isEditing = !isGhost && editingId === item.id;
-    return (
-      <View style={{
-        flexDirection: 'row', alignItems: 'center', gap: 9, height: ROW_H,
-        backgroundColor: isEditing ? t.surface2 : t.surface,
-        borderRadius: 13, paddingVertical: 9, paddingHorizontal: 11,
-        borderWidth: 1, borderColor: isEditing ? t.line : t.line2,
-        opacity: !isGhost && draggingId === item.id ? 0 : 1,
-      }}>
-        {!isEditing && (
-          <GestureDetector gesture={makeGesture(item.id, index)}>
-            <View style={{ padding: 4 }}>
-              <Icon name="grip" size={18} color={t.mut2} sw={2} />
-            </View>
-          </GestureDetector>
-        )}
-        <View style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut }}>{index + 1}</Text>
-        </View>
-        {isEditing ? (
-          <TextInput
-            value={editingName}
-            onChangeText={setEditingName}
-            onSubmitEditing={() => confirmEdit(item.id)}
-            autoFocus
-            returnKeyType="done"
-            style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: 15.5, padding: 0 }}
-          />
-        ) : (
-          <Pressable onPress={() => startEdit(item.id, item.name)} style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ fontSize: 15.5, fontWeight: '700', color: t.text }}>{item.name}</Text>
-          </Pressable>
-        )}
-        {isEditing ? (
-          <Pressable onPress={() => confirmEdit(item.id)} style={{ padding: 4 }}>
-            <Icon name="check" size={17} color={t.limeInk} sw={2.6} />
-          </Pressable>
-        ) : null}
-        <Pressable onPress={() => removeEx(item.id)} style={{ padding: 4 }}>
-          <Icon name="x" size={16} color={t.mut2} sw={2.2} />
-        </Pressable>
-      </View>
-    );
-  };
+  const draggingItem = draggingIdx >= 0 ? exs[draggingIdx] : null;
 
   return (
-    <View
-      ref={listRef}
-      style={{ marginBottom: 10, position: 'relative' }}
-      onLayout={() => listRef.current?.measureInWindow((_x, y) => { listAbsY.value = y; })}
-    >
-      {exs.map((e: ExItem, i: number) => (
-        <View key={e.id} style={{ marginBottom: i < exs.length - 1 ? GAP : 0 }}>
-          <ExRow item={e} index={i} />
-        </View>
-      ))}
-      {draggingItem && (
-        <Animated.View style={ghostStyle} pointerEvents="none">
-          <ExRow item={draggingItem} index={activeIndex.value} isGhost />
-        </Animated.View>
-      )}
-    </View>
+    <GestureDetector gesture={gesture}>
+      <View style={{ marginBottom: 10, position: 'relative' }}>
+        {exs.map((e: ExItem, i: number) => (
+          <View key={e.id} style={{ marginBottom: i < exs.length - 1 ? GAP : 0 }}>
+            <ExRow
+              item={e} index={i} isDragging={draggingIdx === i}
+              t={t} editingId={editingId} editingName={editingName}
+              setEditingName={setEditingName} startEdit={startEdit}
+              confirmEdit={confirmEdit} removeEx={removeEx}
+            />
+          </View>
+        ))}
+        {draggingItem !== null && (
+          <Animated.View style={ghostStyle} pointerEvents="none">
+            <ExRow item={draggingItem} index={draggingIdx} isDragging={false} isGhost t={t} />
+          </Animated.View>
+        )}
+      </View>
+    </GestureDetector>
   );
 }
 
@@ -249,22 +260,27 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: t.bg }}>
-        <View style={{ paddingTop: insets.top }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: t.line2 }}>
-            <Pressable onPress={onClose}>
-              <Text style={{ color: t.mut, fontWeight: '700', fontSize: 15.5 }}>Cancel</Text>
-            </Pressable>
-            <Text style={{ fontSize: 16.5, fontWeight: '800', color: t.text }}>{routine ? 'Edit routine' : 'New routine'}</Text>
-            <Pressable onPress={save} disabled={!canSave}>
-              <Text style={{ color: canSave ? t.orange : t.mut2, fontWeight: '800', fontSize: 15.5 }}>Save</Text>
-            </Pressable>
+      {/* GestureHandlerRootView is required inside Modal — Modal creates a new
+          native view hierarchy that sits outside the app-root GestureHandlerRootView,
+          so RNGH gestures are silently ignored without this wrapper. */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: t.bg }}>
+          <View style={{ paddingTop: insets.top }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: t.line2 }}>
+              <Pressable onPress={onClose}>
+                <Text style={{ color: t.mut, fontWeight: '700', fontSize: 15.5 }}>Cancel</Text>
+              </Pressable>
+              <Text style={{ fontSize: 16.5, fontWeight: '800', color: t.text }}>{routine ? 'Edit routine' : 'New routine'}</Text>
+              <Pressable onPress={save} disabled={!canSave}>
+                <Text style={{ color: canSave ? t.orange : t.mut2, fontWeight: '800', fontSize: 15.5 }}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+          <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 20, paddingBottom: insets.bottom + 20 }}>
+            {body}
           </View>
         </View>
-        <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 20, paddingBottom: insets.bottom + 20 }}>
-          {body}
-        </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

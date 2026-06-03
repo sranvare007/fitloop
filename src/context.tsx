@@ -14,6 +14,7 @@ import {
   addMeasurementDb, loadMeasurements,
   loadStrengthSeries, loadAllExerciseNames,
   exportAllData, importAllData, FitLoopExport,
+  saveInProgressSessionDb, loadInProgressSessionDb, clearInProgressSessionDb, InProgressSession,
   StrengthPoint,
 } from './db';
 import { File, Paths } from 'expo-file-system';
@@ -61,6 +62,10 @@ export interface AppContextValue {
   startSession: (routine: Routine | null) => void;
   exitSession: () => void;
   saveSession: (data: any) => void;
+  resumeSession: () => void;
+  updateInProgressSession: (exercises: any[]) => void;
+  inProgressSession: InProgressSession | null;
+  sessionResumeData: InProgressSession | null;
   editRoutine: (r: Routine | null) => void;
   closeRoutineEdit: () => void;
   saveRoutine: (r: Routine) => void;
@@ -123,6 +128,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState('home');
   const [sessionOn, setSessionOn] = useState(false);
   const [sessionRoutine, setSessionRoutine] = useState<Routine | null>(null);
+  const [inProgressSession, setInProgressSession] = useState<InProgressSession | null>(null);
+  const [sessionResumeData, setSessionResumeData] = useState<InProgressSession | null>(null);
+  const sessionStartedAtRef = useRef(0);
   const [routineEdit, setRoutineEdit] = useState<Routine | null | undefined>(undefined);
   const [detail, setDetail] = useState<Session | null>(null);
   const [toastState, setToastState] = useState<ToastConfig | null>(null);
@@ -145,6 +153,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const rts = await loadRoutines();
       setRoutines(rts);
+
+      const ips = await loadInProgressSessionDb();
+      setInProgressSession(ips);
 
       await refreshRecentData();
       setLoaded(true);
@@ -208,16 +219,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     nav: (k) => setActiveTab(k),
 
-    startSession: (routine) => { setSessionRoutine(routine); setSessionOn(true); },
-    exitSession: () => { setSessionOn(false); setSessionRoutine(null); },
+    startSession: (routine) => {
+      const now = Date.now();
+      sessionStartedAtRef.current = now;
+      setSessionRoutine(routine);
+      setSessionResumeData(null);
+      setSessionOn(true);
+      const ips: InProgressSession = { startedAt: now, routineId: routine?.id || null, routineName: routine?.name || 'Free Workout', exercises: [] };
+      setInProgressSession(ips);
+      saveInProgressSessionDb(ips).catch(() => {});
+    },
+    resumeSession: () => {
+      if (!inProgressSession) return;
+      sessionStartedAtRef.current = inProgressSession.startedAt;
+      const routine = inProgressSession.routineId ? routines.find(r => r.id === inProgressSession.routineId) ?? null : null;
+      setSessionRoutine(routine);
+      setSessionResumeData(inProgressSession);
+      setSessionOn(true);
+    },
+    updateInProgressSession: (exercises: any[]) => {
+      const data: InProgressSession = {
+        startedAt: sessionStartedAtRef.current,
+        routineId: sessionRoutine?.id || null,
+        routineName: sessionRoutine?.name || 'Free Workout',
+        exercises,
+      };
+      setInProgressSession(data);
+      saveInProgressSessionDb(data).catch(() => {});
+    },
+    exitSession: () => {
+      setSessionOn(false); setSessionRoutine(null); setSessionResumeData(null);
+      setInProgressSession(null); clearInProgressSessionDb().catch(() => {});
+    },
     saveSession: async (data: any) => {
       const volume = sessionVolume(data.exercises);
       const sess: Session = { ...data, volume };
       await dbSaveSession(sess);
-      setSessionOn(false); setSessionRoutine(null); setActiveTab('home');
+      setSessionOn(false); setSessionRoutine(null); setSessionResumeData(null); setActiveTab('home');
+      setInProgressSession(null); clearInProgressSessionDb().catch(() => {});
       await refreshRecentData();
       toast({ icon: 'check', msg: 'Session saved!' });
     },
+    inProgressSession, sessionResumeData,
 
     editRoutine: (r) => setRoutineEdit(r === null ? null : r),
     closeRoutineEdit: () => setRoutineEdit(undefined),

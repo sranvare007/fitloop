@@ -176,8 +176,8 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
   );
 }
 
-export function SessionScreen({ routine, onExit, onSave }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void }) {
-  const { t, fmt, toast } = useApp();
+export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; exercises: any[] } | null }) {
+  const { t, fmt, toast, updateInProgressSession } = useApp();
   const insets = useSafeAreaInsets();
   const seedPb = SEED_PB;
 
@@ -186,7 +186,11 @@ export function SessionScreen({ routine, onExit, onSave }: { routine: Routine | 
     sets: withSets ? [{ reps: 10, w: fmt.w(seedPb[name] ? seedPb[name][0] * 0.75 : 40) }, { reps: 8, w: fmt.w(seedPb[name] ? seedPb[name][0] * 0.9 : 50) }] : [],
   });
 
-  const [exs, setExs] = useState(() => (routine?.exercises || ['Bench Press']).map((n, i) => mkEx(n, i === 0)));
+  const [exs, setExs] = useState(() =>
+    resumeData?.exercises?.length
+      ? resumeData.exercises
+      : (routine?.exercises || ['Bench Press']).map((n, i) => mkEx(n, i === 0))
+  );
   const [open, setOpen] = useState<number>(0);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [field, setField] = useState<string | null>(null);
@@ -198,8 +202,9 @@ export function SessionScreen({ routine, onExit, onSave }: { routine: Routine | 
   const [newExName, setNewExName] = useState('');
   const [finish, setFinish] = useState(false);
   const [notes, setNotes] = useState('');
-  const [elapsed, setElapsed] = useState(0);
-  const startRef = useRef(Date.now());
+  const startRef = useRef(resumeData?.startedAt ?? Date.now());
+  const [elapsed, setElapsed] = useState(() => Math.round((Date.now() - startRef.current) / 1000));
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keypad slide animation
   const [keypadVisible, setKeypadVisible] = useState(false);
@@ -227,6 +232,12 @@ export function SessionScreen({ routine, onExit, onSave }: { routine: Routine | 
     const id = setInterval(() => setElapsed(Math.round((Date.now() - startRef.current) / 1000)), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(() => updateInProgressSession(exs), 400);
+    return () => { if (persistTimer.current) clearTimeout(persistTimer.current); };
+  }, [exs]);
 
   const editIdx = editKey ? +editKey.split(':')[0] : -1;
   const editSetIdx = editKey ? +editKey.split(':')[1] : -1;

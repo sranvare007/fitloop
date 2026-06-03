@@ -25,6 +25,7 @@ function AppShell() {
     t,
     sessionOn,
     sessionRoutine,
+    sessionResumeData,
     saveSession,
     exitSession,
     routineEdit,
@@ -73,6 +74,7 @@ function AppShell() {
           routine={sessionRoutine}
           onExit={exitSession}
           onSave={saveSession}
+          resumeData={sessionResumeData}
         />
       </Modal>
 

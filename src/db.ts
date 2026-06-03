@@ -333,6 +333,29 @@ export async function deleteMeasurementDb(id: string): Promise<void> {
   await d.runAsync('DELETE FROM measurements WHERE id = ?', [id]);
 }
 
+// ── In-progress session ────────────────────────────────────────
+const IPS_KEY = 'in_progress_session';
+
+export interface InProgressSession {
+  startedAt: number;
+  routineId: string | null;
+  routineName: string;
+  exercises: any[];
+}
+
+export async function saveInProgressSessionDb(data: InProgressSession): Promise<void> {
+  await setSetting(IPS_KEY, JSON.stringify(data));
+}
+
+export async function loadInProgressSessionDb(): Promise<InProgressSession | null> {
+  return JSON.parse(await getSetting(IPS_KEY, 'null'));
+}
+
+export async function clearInProgressSessionDb(): Promise<void> {
+  const d = await db();
+  await d.runAsync('DELETE FROM settings WHERE key = ?', [IPS_KEY]);
+}
+
 // ── Export / Import ───────────────────────────────────────────
 
 export type FitLoopExport = {
