@@ -107,7 +107,6 @@ export interface AppSettings {
   profile: Profile;
   unit: 'kg' | 'lbs';
   theme: string;
-  onboarded: boolean;
   todayDay: number;
   accent: string;
   pop: string;
@@ -119,7 +118,6 @@ export async function loadSettings(): Promise<AppSettings> {
     profile: JSON.parse(await getSetting('profile', JSON.stringify(SEED.profile))),
     unit: (await getSetting('unit', 'kg')) as 'kg' | 'lbs',
     theme: await getSetting('theme', 'dark'),
-    onboarded: (await getSetting('onboarded', '0')) === '1',
     todayDay: parseInt(await getSetting('todayDay', String(new Date().getDay())), 10),
     accent: await getSetting('accent', '#FF5A2C'),
     pop: await getSetting('pop', '#C6FF3A'),
@@ -133,7 +131,6 @@ export async function saveSettings(s: Partial<AppSettings>): Promise<void> {
     if (s.profile !== undefined) await setSetting('profile', JSON.stringify(s.profile));
     if (s.unit !== undefined) await setSetting('unit', s.unit);
     if (s.theme !== undefined) await setSetting('theme', s.theme);
-    if (s.onboarded !== undefined) await setSetting('onboarded', s.onboarded ? '1' : '0');
     if (s.todayDay !== undefined) await setSetting('todayDay', String(s.todayDay));
     if (s.accent !== undefined) await setSetting('accent', s.accent);
     if (s.pop !== undefined) await setSetting('pop', s.pop);

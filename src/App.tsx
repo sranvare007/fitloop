@@ -45,7 +45,11 @@ function AppShell() {
     HankenGrotesk_800ExtraBold,
   });
 
+  // splashDone gates the onboarding modal — set to true before the fade so the
+  // modal is visible before the overlay turns transparent (prevents home screen flash).
   const [splashDone, setSplashDone] = useState(false);
+  // overlayVisible controls whether the overlay node stays in the tree.
+  const [overlayVisible, setOverlayVisible] = useState(true);
   const splashOpacity = useRef(new Animated.Value(1)).current;
   // Captured once at mount — onboarded may change later when user completes onboarding
   const isFirstLaunch = useRef(!onboarded).current;
@@ -61,11 +65,13 @@ function AppShell() {
   useEffect(() => {
     if (!fontsLoaded) return;
     const timer = setTimeout(() => {
+      // Unlock modal first so it's visible before the overlay fades away.
+      setSplashDone(true);
       Animated.timing(splashOpacity, {
         toValue: 0,
         duration: 350,
         useNativeDriver: true,
-      }).start(() => setSplashDone(true));
+      }).start(() => setOverlayVisible(false));
     }, isFirstLaunch ? 2000 : 1500);
     return () => clearTimeout(timer);
   }, [fontsLoaded]);
@@ -121,7 +127,7 @@ function AppShell() {
       <Toast toast={toastState} t={t} />
 
       {/* Splash — Lottie on first-ever launch, static image on all subsequent opens */}
-      {!splashDone && (
+      {overlayVisible && (
         <Animated.View
           style={[styles.splash, { backgroundColor: t.bg, opacity: splashOpacity }]}
           pointerEvents="auto"

@@ -22,6 +22,7 @@ import { StorageAccessFramework, writeAsStringAsync as safWrite } from 'expo-fil
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { Platform } from 'react-native';
+import { storage, KEYS } from './storage';
 
 export interface ToastConfig {
   icon?: string;
@@ -111,7 +112,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [unit, setUnitState] = useState<'kg' | 'lbs'>('kg');
   const [themeName, setThemeName] = useState('dark');
-  const [onboarded, setOnboarded] = useState(false);
+  const [onboarded, setOnboarded] = useState(() => storage.getBoolean(KEYS.ONBOARDED) ?? false);
   const [todayDay, setTodayDay] = useState(new Date().getDay());
   const [accent, setAccent] = useState('#FF5A2C');
   const [pop, setPop] = useState('#C6FF3A');
@@ -145,7 +146,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setProfile(s.profile);
       setUnitState(s.unit);
       setThemeName(s.theme);
-      setOnboarded(s.onboarded);
       setTodayDay(s.todayDay);
       setAccent(s.accent);
       setPop(s.pop);
@@ -305,7 +305,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setOverride(ov); persistSetting({ override: ov });
     },
 
-    replayOnboarding: () => { setOnboarded(false); persistSetting({ onboarded: false }); },
+    replayOnboarding: () => { storage.set(KEYS.ONBOARDED, false); setOnboarded(false); },
     completeOnboarding: async (p, rs) => {
       setProfile(p);
       await saveSettings({ profile: p });
@@ -314,7 +314,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       const updated = await loadRoutines();
       setRoutines(updated);
-      await saveSettings({ onboarded: true });
+      storage.set(KEYS.ONBOARDED, true);
       setOnboarded(true);
       setActiveTab('home');
     },
