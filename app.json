@@ -14,8 +14,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/adaptive-icon-foreground.png",
+        "backgroundImage": "./assets/adaptive-icon-background.png"
       },
       "package": "com.fitloop"
     },
@@ -34,6 +34,12 @@
       "expo-sqlite",
       "expo-font",
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f5243a34-96e2-4b2d-ba9d-7e0f3e2829aa"
+      }
+    },
+    "owner": "srnanvare007"
   }
 }
