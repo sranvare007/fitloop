@@ -1,10 +1,145 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Pressable, ScrollView, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { useApp } from '../context';
 import { Btn, IconBtn, Chip, Sheet, MenuRow, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
 import { Icon, DotsMenu } from '../components/Icon';
 import { Routine, dayLabel, uid, ROUTINE_COLORS, DAYS } from '../data';
+
+const GAP = 7;
+const ROW_H = 50;
+const CELL_H = ROW_H + GAP;
+
+type ExItem = { id: string; name: string };
+
+function SortableExerciseList({ exs, setExs, t, editingId, startEdit, confirmEdit, editingName, setEditingName, removeEx, onDragStart, onDragEnd }: any) {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const ghostY = useSharedValue(0);
+  const activeIndex = useSharedValue(-1);
+  const listAbsY = useSharedValue(0);
+  const listRef = useRef<View>(null);
+
+  const ghostStyle = useAnimatedStyle(() => ({
+    position: 'absolute' as const,
+    left: 0, right: 0,
+    top: ghostY.value,
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 8,
+  }));
+
+  const beginDrag = (id: string, idx: number) => {
+    setDraggingId(id);
+    onDragStart?.();
+    activeIndex.value = idx;
+  };
+  const endDrag = () => { setDraggingId(null); onDragEnd?.(); };
+
+  const commitSwap = (fromIdx: number, toIdx: number) => {
+    setExs((prev: ExItem[]) => {
+      const arr = [...prev];
+      const [item] = arr.splice(fromIdx, 1);
+      arr.splice(toIdx, 0, item);
+      return arr;
+    });
+  };
+
+  const draggingItem = draggingId ? exs.find((e: ExItem) => e.id === draggingId) : null;
+
+  const makeGesture = (id: string, index: number) =>
+    Gesture.Pan()
+      .activateAfterLongPress(200)
+      .onStart(() => {
+        'worklet';
+        ghostY.value = index * CELL_H;
+        runOnJS(beginDrag)(id, index);
+      })
+      .onUpdate((e) => {
+        'worklet';
+        const relY = e.absoluteY - listAbsY.value;
+        ghostY.value = Math.max(0, relY - ROW_H / 2);
+        const targetIdx = Math.max(0, Math.min(Math.round(relY / CELL_H), 20));
+        if (targetIdx !== activeIndex.value) {
+          runOnJS(commitSwap)(activeIndex.value, targetIdx);
+          activeIndex.value = targetIdx;
+        }
+      })
+      .onEnd(() => {
+        'worklet';
+        ghostY.value = withSpring(activeIndex.value * CELL_H, { damping: 20, stiffness: 300 });
+        runOnJS(endDrag)();
+      });
+
+  const ExRow = ({ item, index, isGhost = false }: { item: ExItem; index: number; isGhost?: boolean }) => {
+    const isEditing = !isGhost && editingId === item.id;
+    return (
+      <View style={{
+        flexDirection: 'row', alignItems: 'center', gap: 9, height: ROW_H,
+        backgroundColor: isEditing ? t.surface2 : t.surface,
+        borderRadius: 13, paddingVertical: 9, paddingHorizontal: 11,
+        borderWidth: 1, borderColor: isEditing ? t.line : t.line2,
+        opacity: !isGhost && draggingId === item.id ? 0 : 1,
+      }}>
+        {!isEditing && (
+          <GestureDetector gesture={makeGesture(item.id, index)}>
+            <View style={{ padding: 4 }}>
+              <Icon name="grip" size={18} color={t.mut2} sw={2} />
+            </View>
+          </GestureDetector>
+        )}
+        <View style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut }}>{index + 1}</Text>
+        </View>
+        {isEditing ? (
+          <TextInput
+            value={editingName}
+            onChangeText={setEditingName}
+            onSubmitEditing={() => confirmEdit(item.id)}
+            autoFocus
+            returnKeyType="done"
+            style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: 15.5, padding: 0 }}
+          />
+        ) : (
+          <Pressable onPress={() => startEdit(item.id, item.name)} style={{ flex: 1 }}>
+            <Text numberOfLines={1} style={{ fontSize: 15.5, fontWeight: '700', color: t.text }}>{item.name}</Text>
+          </Pressable>
+        )}
+        {isEditing ? (
+          <Pressable onPress={() => confirmEdit(item.id)} style={{ padding: 4 }}>
+            <Icon name="check" size={17} color={t.limeInk} sw={2.6} />
+          </Pressable>
+        ) : null}
+        <Pressable onPress={() => removeEx(item.id)} style={{ padding: 4 }}>
+          <Icon name="x" size={16} color={t.mut2} sw={2.2} />
+        </Pressable>
+      </View>
+    );
+  };
+
+  return (
+    <View
+      ref={listRef}
+      style={{ marginBottom: 10, position: 'relative' }}
+      onLayout={() => listRef.current?.measureInWindow((_x, y) => { listAbsY.value = y; })}
+    >
+      {exs.map((e: ExItem, i: number) => (
+        <View key={e.id} style={{ marginBottom: i < exs.length - 1 ? GAP : 0 }}>
+          <ExRow item={e} index={i} />
+        </View>
+      ))}
+      {draggingItem && (
+        <Animated.View style={ghostStyle} pointerEvents="none">
+          <ExRow item={draggingItem} index={activeIndex.value} isGhost />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
 
 function inputStyle(t: any) {
   return { padding: 14, borderRadius: 13, borderWidth: 1.5, borderColor: t.line, backgroundColor: t.surface, color: t.text, fontSize: 15.5, fontWeight: '700' as const };
@@ -25,6 +160,7 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
   const [input, setInput] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [outerScrollEnabled, setOuterScrollEnabled] = useState(true);
   const color = routine?.color || ROUTINE_COLORS[Math.floor(Math.random() * ROUTINE_COLORS.length)];
   const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
@@ -35,16 +171,6 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
     setInput('');
   };
   const removeEx = (id: string) => { setExs(exs.filter(e => e.id !== id)); if (editingId === id) setEditingId(null); };
-  const moveEx = (id: string, dir: -1 | 1) => {
-    setExs(prev => {
-      const idx = prev.findIndex(e => e.id === id);
-      const next = idx + dir;
-      if (next < 0 || next >= prev.length) return prev;
-      const arr = [...prev];
-      [arr[idx], arr[next]] = [arr[next], arr[idx]];
-      return arr;
-    });
-  };
   const startEdit = (id: string, currentName: string) => { setEditingId(id); setEditingName(currentName); };
   const confirmEdit = (id: string) => {
     const v = editingName.trim();
@@ -56,7 +182,7 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
   const save = () => canSave && onSave({ id: routine?.id || uid(), name: name.trim(), exercises: exs.map(e => e.name), days: [...days], color });
 
   const body = (
-    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <ScrollView scrollEnabled={outerScrollEnabled} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       {/* Name */}
       <View style={{ marginBottom: 20 }}>
         <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut2, letterSpacing: 0.5, marginBottom: 9 }}>ROUTINE NAME</Text>
@@ -67,51 +193,19 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
         <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut2, letterSpacing: 0.5, marginBottom: 9 }}>
           EXERCISES <Text style={{ color: t.mut2 }}>· {exs.length}</Text>
         </Text>
-        <View style={{ gap: 7, marginBottom: 10 }}>
-          {exs.map((e, i) => {
-            const isEditing = editingId === e.id;
-            return (
-              <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isEditing ? t.surface2 : t.surface, borderRadius: 13, paddingVertical: 9, paddingHorizontal: 11, borderWidth: 1, borderColor: isEditing ? t.line : t.line2 }}>
-                <View style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut }}>{i + 1}</Text>
-                </View>
-                {isEditing ? (
-                  <TextInput
-                    value={editingName}
-                    onChangeText={setEditingName}
-                    onSubmitEditing={() => confirmEdit(e.id)}
-                    autoFocus
-                    returnKeyType="done"
-                    style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: 15.5, padding: 0 }}
-                  />
-                ) : (
-                  <Pressable onPress={() => startEdit(e.id, e.name)} style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15.5, fontWeight: '700', color: t.text }}>{e.name}</Text>
-                  </Pressable>
-                )}
-                {isEditing ? (
-                  <Pressable onPress={() => confirmEdit(e.id)} style={{ padding: 4 }}>
-                    <Icon name="check" size={17} color={t.limeInk} sw={2.6} />
-                  </Pressable>
-                ) : (
-                  <View style={{ flexDirection: 'row', gap: 2 }}>
-                    <Pressable onPress={() => moveEx(e.id, -1)} disabled={i === 0} style={{ padding: 5, opacity: i === 0 ? 0.25 : 1 }}>
-                      <View style={{ transform: [{ rotate: '180deg' }] }}>
-                        <Icon name="chevD" size={15} color={t.mut} sw={2.2} />
-                      </View>
-                    </Pressable>
-                    <Pressable onPress={() => moveEx(e.id, 1)} disabled={i === exs.length - 1} style={{ padding: 5, opacity: i === exs.length - 1 ? 0.25 : 1 }}>
-                      <Icon name="chevD" size={15} color={t.mut} sw={2.2} />
-                    </Pressable>
-                  </View>
-                )}
-                <Pressable onPress={() => removeEx(e.id)} style={{ padding: 4 }}>
-                  <Icon name="x" size={16} color={t.mut2} sw={2.2} />
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
+        <SortableExerciseList
+          exs={exs}
+          setExs={setExs}
+          t={t}
+          editingId={editingId}
+          startEdit={startEdit}
+          confirmEdit={confirmEdit}
+          editingName={editingName}
+          setEditingName={setEditingName}
+          removeEx={removeEx}
+          onDragStart={() => setOuterScrollEnabled(false)}
+          onDragEnd={() => setOuterScrollEnabled(true)}
+        />
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TextInput value={input} onChangeText={setInput} onSubmitEditing={() => addExercise()} placeholder="Add an exercise…" placeholderTextColor={t.mut2} returnKeyType="done"
             style={[inputStyle(t), { flex: 1 }]} />
