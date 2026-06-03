@@ -17,8 +17,10 @@ import {
   StrengthPoint,
 } from './db';
 import { File, Paths } from 'expo-file-system';
+import { StorageAccessFramework, writeAsStringAsync as safWrite } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import { Platform } from 'react-native';
 
 export interface ToastConfig {
   icon?: string;
@@ -298,7 +300,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const data = await exportAllData(profile);
         const json = JSON.stringify(data, null, 2);
         const date = new Date().toISOString().slice(0, 10);
-        const file = new File(Paths.document, `fitloop-backup-${date}.json`);
+        const filename = `fitloop-backup-${date}`;
+
+        if (Platform.OS === 'android') {
+          // null opens the folder picker at the device root — user can choose any accessible folder
+          const perm = await StorageAccessFramework.requestDirectoryPermissionsAsync(null);
+          if (perm.granted) {
+            // Find or create the Fitloop subfolder inside the chosen folder
+            const entries = await StorageAccessFramework.readDirectoryAsync(perm.directoryUri);
+            let fitloopDirUri = entries.find(
+              u => decodeURIComponent(u).split('/').pop() === 'Fitloop'
+            );
+            if (!fitloopDirUri) {
+              fitloopDirUri = await StorageAccessFramework.makeDirectoryAsync(
+                perm.directoryUri, 'Fitloop'
+              );
+            }
+            const fileUri = await StorageAccessFramework.createFileAsync(
+              fitloopDirUri, filename, 'application/json'
+            );
+            await safWrite(fileUri, json);
+            toast({ icon: 'check', msg: 'Saved to Fitloop folder' });
+            return;
+          }
+          // user cancelled picker — fall through to share sheet
+        }
+
+        // iOS + Android fallback when picker is cancelled
+        const file = new File(Paths.document, `${filename}.json`);
         file.write(json);
         await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Save FitLoop Backup' });
       } catch {
