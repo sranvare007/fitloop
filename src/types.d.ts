@@ -7,3 +7,13 @@ declare module '*.jpg' {
   const value: import('react-native').ImageSourcePropType;
   export default value;
 }
+
+declare module '*.lottie' {
+  const value: number;
+  export default value;
+}
+
+declare module '*.json' {
+  const value: any;
+  export default value;
+}

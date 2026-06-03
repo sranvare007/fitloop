@@ -307,7 +307,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     replayOnboarding: () => { setOnboarded(false); persistSetting({ onboarded: false }); },
     completeOnboarding: async (p, rs) => {
-      setProfile(p); persistSetting({ profile: p });
+      setProfile(p);
+      await saveSettings({ profile: p });
       for (const r of rs) {
         await dbSaveRoutine(r);
       }

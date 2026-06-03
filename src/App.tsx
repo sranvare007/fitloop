@@ -1,5 +1,6 @@
-import React, { useEffect } from "react";
-import { View, StatusBar, Modal } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, StatusBar, Modal, Animated, StyleSheet, Image } from "react-native";
+import LottieView from "lottie-react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
@@ -44,10 +45,29 @@ function AppShell() {
     HankenGrotesk_800ExtraBold,
   });
 
+  const [splashDone, setSplashDone] = useState(false);
+  const splashOpacity = useRef(new Animated.Value(1)).current;
+  // Captured once at mount — onboarded may change later when user completes onboarding
+  const isFirstLaunch = useRef(!onboarded).current;
+
   useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
+  }, [fontsLoaded]);
+
+  // First launch: Lottie at 3× speed = 2s. Subsequent opens: image for 1.5s.
+  // Timer is more reliable than onAnimationFinish which fires immediately on some builds.
+  useEffect(() => {
+    if (!fontsLoaded) return;
+    const timer = setTimeout(() => {
+      Animated.timing(splashOpacity, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: true,
+      }).start(() => setSplashDone(true));
+    }, isFirstLaunch ? 2000 : 1500);
+    return () => clearTimeout(timer);
   }, [fontsLoaded]);
 
   if (!fontsLoaded) return null;
@@ -88,9 +108,9 @@ function AppShell() {
         />
       )}
 
-      {/* Onboarding — shown on first launch */}
+      {/* Onboarding — shown after splash completes on first launch */}
       <Modal
-        visible={!onboarded}
+        visible={splashDone && !onboarded}
         animationType="fade"
         presentationStyle="fullScreen"
       >
@@ -99,9 +119,46 @@ function AppShell() {
 
       {/* Toast notification */}
       <Toast toast={toastState} t={t} />
+
+      {/* Splash — Lottie on first-ever launch, static image on all subsequent opens */}
+      {!splashDone && (
+        <Animated.View
+          style={[styles.splash, { backgroundColor: t.bg, opacity: splashOpacity }]}
+          pointerEvents="auto"
+        >
+          {isFirstLaunch ? (
+            <LottieView
+              source={require("./assets/splash-animation.lottie")}
+              autoPlay
+              loop={false}
+              speed={3}
+              style={StyleSheet.absoluteFill}
+            />
+          ) : (
+            <Image
+              source={require("./assets/splash-image.png")}
+              style={styles.splashImage}
+              resizeMode="contain"
+            />
+          )}
+        </Animated.View>
+      )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  splash: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashImage: {
+    width: '80%',
+    height: '80%',
+  },
+});
 
 export function App() {
   return (
