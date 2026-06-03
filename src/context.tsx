@@ -313,7 +313,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       const updated = await loadRoutines();
       setRoutines(updated);
-      setOnboarded(true); persistSetting({ onboarded: true });
+      await saveSettings({ onboarded: true });
+      setOnboarded(true);
       setActiveTab('home');
     },
     clearData: async () => {
