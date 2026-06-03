@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Pressable, ScrollView, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context';
 import { Btn, IconBtn, Chip, Sheet, MenuRow, Stat, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
@@ -200,6 +201,28 @@ export function SessionScreen({ routine, onExit, onSave }: { routine: Routine | 
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef(Date.now());
 
+  // Keypad slide animation
+  const [keypadVisible, setKeypadVisible] = useState(false);
+  const slideAnim = useSharedValue(400);
+  const prevFieldRef = useRef<string | null>(null);
+  const keypadAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: slideAnim.value }],
+  }));
+
+  useEffect(() => {
+    if (field && !prevFieldRef.current) {
+      setKeypadVisible(true);
+      slideAnim.value = withSpring(0, { damping: 22, stiffness: 300, mass: 0.9 });
+    }
+    prevFieldRef.current = field;
+  }, [field]);
+
+  const dismissKeypad = () => {
+    slideAnim.value = withTiming(400, { duration: 220 }, (done) => {
+      if (done) { runOnJS(setField)(null); runOnJS(setKeypadVisible)(false); }
+    });
+  };
+
   useEffect(() => {
     const id = setInterval(() => setElapsed(Math.round((Date.now() - startRef.current) / 1000)), 1000);
     return () => clearInterval(id);
@@ -286,7 +309,6 @@ export function SessionScreen({ routine, onExit, onSave }: { routine: Routine | 
 
   const totalVol = Math.round(exs.reduce((a: number, e: any) => a + e.sets.reduce((s: number, x: any) => s + x.reps * x.w, 0), 0));
   const totalSets = exs.reduce((a: number, e: any) => a + e.sets.length, 0);
-  const keypadOpen = editKey && field;
 
   const doSave = () => {
     const exsKg = exs.filter((e: any) => e.sets.length).map((e: any) => ({
@@ -311,12 +333,12 @@ export function SessionScreen({ routine, onExit, onSave }: { routine: Routine | 
       </View>
 
       {/* Exercise list */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: keypadOpen ? 320 : 130, gap: 12 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: keypadVisible ? 320 : 130, gap: 12 }} showsVerticalScrollIndicator={false}>
         {exs.map((ex: any, i: number) => (
           <ExerciseCard key={ex.id} ex={ex} idx={i} t={t} fmt={fmt}
             isOpen={open === i} onToggle={() => setOpen(open === i ? -1 : i)}
             editKey={editKey} setEditKey={setEditKey} field={field}
-            setField={(f: string) => { setField(f); setFresh(true); }}
+            setField={(f: string | null) => { if (f === null) dismissKeypad(); else { setField(f); setFresh(true); } }}
             updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
             onMenu={() => setMenu(i)} />
         ))}
@@ -327,7 +349,7 @@ export function SessionScreen({ routine, onExit, onSave }: { routine: Routine | 
       </ScrollView>
 
       {/* Volume bar */}
-      {!keypadOpen && (
+      {!keypadVisible && (
         <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 20, paddingBottom: insets.bottom + 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: t.bg }}>
           <View>
             <Text style={{ fontSize: 10.5, color: t.mut2, fontWeight: '800', letterSpacing: 0.6 }}>TOTAL VOLUME</Text>
@@ -344,12 +366,12 @@ export function SessionScreen({ routine, onExit, onSave }: { routine: Routine | 
       )}
 
       {/* Keypad */}
-      {keypadOpen && (
+      {keypadVisible && (
         <>
-          <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={() => setField(null)} />
-          <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
-            <KeypadBar t={t} field={field} step={field === 'reps' ? 1 : fmt.step} onKey={onKey} onClose={() => setField(null)} />
-          </View>
+          <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={dismissKeypad} />
+          <Animated.View style={[{ position: 'absolute', left: 0, right: 0, bottom: 0 }, keypadAnimStyle]}>
+            <KeypadBar t={t} field={field} step={field === 'reps' ? 1 : fmt.step} onKey={onKey} onClose={dismissKeypad} />
+          </Animated.View>
         </>
       )}
 
