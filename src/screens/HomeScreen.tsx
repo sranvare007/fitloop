@@ -168,9 +168,9 @@ export function HomeScreen() {
             </View>
             <Text style={{ fontSize: 21, fontWeight: '800', color: t.text, letterSpacing: -0.3 }}>Rest day</Text>
             <Text style={{ fontSize: 14, color: t.mut, fontWeight: '600', marginTop: 6, lineHeight: 22, textAlign: 'center', maxWidth: 250 }}>No routine scheduled today. Recovery is part of the plan — or jump in anyway.</Text>
-            <View style={{ flexDirection: 'row', gap: 9, marginTop: 18, width: '100%' }}>
-              <Btn t={t} variant="ghost" full onPress={() => setPickerOpen(true)} icon="swap">Pick a routine</Btn>
-              <Btn t={t} variant="pop" full onPress={() => startSession(null)} icon="bolt">Free workout</Btn>
+            <View style={{ flexDirection: 'row', gap: 9, marginTop: 18, alignSelf: 'stretch' }}>
+              <Btn t={t} variant="ghost" style={{ flex: 1 }} onPress={() => setPickerOpen(true)} icon="swap">Pick a routine</Btn>
+              <Btn t={t} variant="pop" style={{ flex: 1 }} onPress={() => startSession(null)} icon="bolt">Free workout</Btn>
             </View>
           </View>}
 
