@@ -104,9 +104,18 @@ function ProfileForm({ t, fmt, profile, onSave }: { t: any; fmt: any; profile: P
 }
 
 export function SettingsScreen() {
-  const { t, fmt, state, setUnit, setTheme, accent, pop, setAccent, setPop, replayOnboarding, clearData, updateProfile } = useApp();
+  const { t, fmt, state, setUnit, setTheme, accent, pop, setAccent, setPop, replayOnboarding, clearData, updateProfile, exportData, importData, toast } = useApp();
   const [editProfile, setEditProfile] = useState(false);
   const [clearStep, setClearStep] = useState(0);
+  const [importResult, setImportResult] = useState<{ routines: number; sessions: number; measurements: number } | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  async function handleImport() {
+    setImporting(true);
+    const result = await importData();
+    setImporting(false);
+    if (result) setImportResult(result);
+  }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
@@ -160,6 +169,11 @@ export function SettingsScreen() {
       </Group>
 
       <Group t={t} header="DATA">
+        <Row t={t} icon="upload" title="Export data" sub="Share routines & history as a backup file" onPress={exportData} right={<Icon name="chevR" size={18} color={t.mut2} sw={2.2} />} />
+        <Row t={t} icon="download" title="Import data" sub="Restore from a backup file" onPress={importing ? undefined : handleImport}
+          right={importing
+            ? <Text style={{ fontSize: 13, color: t.mut, fontWeight: '600' }}>Loading…</Text>
+            : <Icon name="chevR" size={18} color={t.mut2} sw={2.2} />} />
         <Row t={t} icon="play" title="Replay onboarding" onPress={replayOnboarding} right={<Icon name="chevR" size={18} color={t.mut2} sw={2.2} />} />
         <Row t={t} icon="trash" title="Clear all data" sub="Wipes everything on this device" danger last onPress={() => setClearStep(1)} right={<Icon name="chevR" size={18} color={t.danger} sw={2.2} />} />
       </Group>
@@ -186,6 +200,30 @@ export function SettingsScreen() {
           : <Btn t={t} variant="danger" full size="lg" onPress={() => { clearData(); setClearStep(0); }} icon="trash">Erase everything</Btn>}
         <View style={{ height: 9 }} />
         <Btn t={t} variant="ghost" full onPress={() => setClearStep(0)}>Cancel</Btn>
+      </Sheet>
+
+      {/* Import result */}
+      <Sheet open={importResult !== null} onClose={() => setImportResult(null)} t={t} title="Import complete">
+        {importResult && (
+          <>
+            <View style={{ gap: 10, marginBottom: 22 }}>
+              {[
+                { label: 'Routines imported', value: importResult.routines },
+                { label: 'Sessions imported', value: importResult.sessions },
+                { label: 'Measurements imported', value: importResult.measurements },
+              ].map(({ label, value }) => (
+                <View key={label} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: t.elev, borderRadius: 13, paddingVertical: 13, paddingHorizontal: 16 }}>
+                  <Text style={{ fontSize: 14.5, fontWeight: '700', color: t.text }}>{label}</Text>
+                  <Text style={{ fontSize: 20, fontWeight: '800', color: value > 0 ? t.lime : t.mut }}>{value}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={{ fontSize: 12.5, color: t.mut2, fontWeight: '600', marginBottom: 18, lineHeight: 19 }}>
+              Existing entries were not overwritten. Only new items were added.
+            </Text>
+            <Btn t={t} variant="pop" full size="lg" onPress={() => setImportResult(null)}>Done</Btn>
+          </>
+        )}
       </Sheet>
     </ScrollView>
   );

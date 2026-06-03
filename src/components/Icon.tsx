@@ -33,6 +33,8 @@ const PATHS: Record<string, string> = {
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 7.5h.01',
   bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
   swap: 'M7 4L3.5 7.5 7 11 M3.5 7.5H17 M17 20l3.5-3.5L17 13 M20.5 16.5H7',
+  upload: 'M12 16V4 M7 9l5-5 5 5 M4 20h16',
+  download: 'M12 4v12 M7 11l5 5 5-5 M4 20h16',
 };
 
 interface IconProps {

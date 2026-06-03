@@ -5,7 +5,7 @@ import {
   makeFmt, sessionVolume, uid, LB, DAY_MS,
 } from './data';
 import {
-  initDb, seedIfEmpty,
+  initDb,
   loadSettings, saveSettings, AppSettings,
   loadRoutines, saveRoutine as dbSaveRoutine, deleteRoutine as dbDeleteRoutine,
   saveSession as dbSaveSession, deleteSessionDb,
@@ -13,8 +13,12 @@ import {
   recentSessionCount, recentSessionDays,
   addMeasurementDb, loadMeasurements,
   loadStrengthSeries, loadAllExerciseNames,
+  exportAllData, importAllData, FitLoopExport,
   StrengthPoint,
 } from './db';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 
 export interface ToastConfig {
   icon?: string;
@@ -74,6 +78,8 @@ export interface AppContextValue {
   completeOnboarding: (p: Profile, rs: Routine[]) => void;
   clearData: () => void;
   updateProfile: (p: Profile) => void;
+  exportData: () => Promise<void>;
+  importData: () => Promise<{ routines: number; sessions: number; measurements: number } | null>;
   toast: (cfg: ToastConfig | null) => void;
 
   // Overlay state
@@ -124,7 +130,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       await initDb();
-      await seedIfEmpty();
 
       const s = await loadSettings();
       setProfile(s.profile);
@@ -287,6 +292,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setActiveTab('home');
     },
     updateProfile: (p) => { setProfile(p); persistSetting({ profile: p }); toast({ icon: 'check', msg: 'Profile updated' }); },
+
+    exportData: async () => {
+      try {
+        const data = await exportAllData(profile);
+        const json = JSON.stringify(data, null, 2);
+        const date = new Date().toISOString().slice(0, 10);
+        const file = new File(Paths.document, `fitloop-backup-${date}.json`);
+        file.write(json);
+        await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Save FitLoop Backup' });
+      } catch {
+        toast({ icon: 'info', msg: 'Export failed', tone: 'danger' });
+      }
+    },
+
+    importData: async () => {
+      try {
+        const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+        if (result.canceled || !result.assets?.length) return null;
+        const uri = result.assets[0].uri;
+        const json = await new File(uri).text();
+        const data: FitLoopExport = JSON.parse(json);
+        if (data.version !== 1 || !Array.isArray(data.routines) || !Array.isArray(data.sessions) || !Array.isArray(data.measurements)) {
+          toast({ icon: 'info', msg: 'Invalid backup file', tone: 'danger' });
+          return null;
+        }
+        const counts = await importAllData(data);
+        const updated = await loadRoutines();
+        setRoutines(updated);
+        await refreshRecentData();
+        return counts;
+      } catch {
+        toast({ icon: 'info', msg: 'Import failed', tone: 'danger' });
+        return null;
+      }
+    },
+
     toast,
 
     onboarded, sessionOn, sessionRoutine, routineEdit, detail, toastState,

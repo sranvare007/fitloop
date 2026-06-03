@@ -7,7 +7,7 @@ import { DAYS, DAYS_FULL, DAY_MS, relDate, sessionVolume } from '../data';
 
 function WeekStrip() {
   const { t, state, doneDays } = useApp();
-  const today = state.todayDay;
+  const today = new Date().getDay();
   const order = [1, 2, 3, 4, 5, 6, 0];
   return (
     <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
@@ -20,14 +20,14 @@ function WeekStrip() {
             <Text style={{ fontSize: 11, fontWeight: '800', color: isToday ? t.text : t.mut2, letterSpacing: 0.2 }}>{DAYS[d][0]}</Text>
             <View style={{
               width: '100%', height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center',
-              backgroundColor: done ? t.lime : assigned ? t.surface : 'transparent',
+              backgroundColor: done ? t.lime : assigned ? t.elev : 'transparent',
               borderWidth: isToday ? 1.8 : 1,
-              borderColor: isToday ? t.orange : assigned ? t.line : t.line,
+              borderColor: isToday ? t.orange : assigned ? t.line : t.line2,
               borderStyle: assigned || isToday ? 'solid' : 'dashed',
             }}>
               {done
                 ? <Icon name="check" size={16} color={t.onLime} sw={3} />
-                : <View style={{ width: 5, height: 5, borderRadius: 99, backgroundColor: assigned ? t.mut2 : 'transparent' }} />}
+                : assigned ? <View style={{ width: 5, height: 5, borderRadius: 99, backgroundColor: t.orange }} /> : null}
             </View>
           </View>
         );
@@ -156,7 +156,7 @@ function MeasureCard() {
 
 export function HomeScreen() {
   const { t, fmt, state, recentHistory, weekCount, nav, startSession, swapTodayRoutine } = useApp();
-  const today = state.todayDay;
+  const today = new Date().getDay();
   const sched = state.routines.filter(r => r.days.includes(today));
   const ov = state.override && state.override.day === today ? state.routines.find(r => r.id === state.override!.id) : null;
   const todays = ov ? [ov] : sched;

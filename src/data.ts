@@ -26,15 +26,6 @@ export const DAY_MS = 86400000;
 export const LB = 2.20462;
 export const ROUTINE_COLORS = ['#FF5A2C', '#C6FF3A', '#5B8CFF', '#FF9F1C', '#19E0A0', '#C77DFF'];
 
-const SEED_ROUTINES: Routine[] = [
-  { id: 'r1', name: 'Push Day', days: [1, 4], color: '#FF5A2C',
-    exercises: ['Bench Press', 'Incline DB Press', 'Overhead Press', 'Cable Fly', 'Tricep Pushdown'] },
-  { id: 'r2', name: 'Pull Day', days: [2, 5], color: '#C6FF3A',
-    exercises: ['Deadlift', 'Lat Pulldown', 'Barbell Row', 'Face Pull', 'Bicep Curl'] },
-  { id: 'r3', name: 'Leg Day', days: [3, 6], color: '#5B8CFF',
-    exercises: ['Back Squat', 'Leg Press', 'Romanian Deadlift', 'Leg Curl', 'Calf Raise'] },
-];
-
 export const SEED_PB: Record<string, [number, number]> = {
   'Bench Press': [80, 8], 'Incline DB Press': [32, 10], 'Overhead Press': [50, 8],
   'Cable Fly': [22, 12], 'Tricep Pushdown': [30, 14], 'Deadlift': [140, 5],
@@ -51,53 +42,8 @@ export const KNOWN_EXERCISES = [...new Set([
   'Hip Thrust', 'Hanging Leg Raise', 'Plank', 'Skull Crusher',
 ])].sort();
 
-function genHistory(): Session[] {
-  const sessions: Session[] = [];
-  const now = Date.now();
-  const plan = [{ r: SEED_ROUTINES[0] }, { r: SEED_ROUTINES[1] }, { r: SEED_ROUTINES[2] }];
-  for (let w = 8; w >= 0; w--) {
-    plan.forEach((p, pi) => {
-      const start = now - (w * 7 + (6 - pi * 2)) * DAY_MS - 19 * 3600000;
-      const prog = (8 - w) * 0.02;
-      const exs = p.r.exercises.slice(0, 4).map((name) => {
-        const [baseKg, baseReps] = SEED_PB[name] || [40, 10];
-        const top = Math.round((baseKg * (0.86 + prog) * 2) / 2 * 2) / 2;
-        const sets: SetEntry[] = [
-          { reps: baseReps + 2, kg: Math.max(20, Math.round((top * 0.75) / 2.5) * 2.5) },
-          { reps: baseReps, kg: Math.max(20, Math.round((top * 0.9) / 2.5) * 2.5) },
-          { reps: baseReps - 1, kg: top },
-        ];
-        return { id: uid(), name, sets };
-      });
-      const vol = exs.reduce((a, e) => a + e.sets.reduce((s, x) => s + x.reps * x.kg, 0), 0);
-      const dur = 2600 + Math.round(Math.random() * 1400);
-      sessions.push({
-        id: uid(), routineId: p.r.id, routineName: p.r.name,
-        startedAt: start, endedAt: start + dur * 1000, durationSec: dur,
-        exercises: exs, volume: Math.round(vol), notes: '',
-      });
-    });
-  }
-  return sessions.sort((a, b) => b.startedAt - a.startedAt);
-}
-
-function genMeasurements(): Measurement[] {
-  const out: Measurement[] = [];
-  const now = Date.now();
-  let wt = 84.5, bf = 19.5;
-  for (let i = 60; i >= 0; i -= 4) {
-    wt -= 0.18 + Math.random() * 0.12;
-    bf -= 0.07 + Math.random() * 0.05;
-    out.push({ id: uid(), at: now - i * DAY_MS, weightKg: +wt.toFixed(1), bodyFat: +bf.toFixed(1) });
-  }
-  return out;
-}
-
 export const SEED = {
   profile: { name: 'Alex', age: 28, gender: 'MALE', heightCm: 178, weightKg: 79.4 } as Profile,
-  routines: SEED_ROUTINES,
-  history: genHistory(),
-  measurements: genMeasurements(),
 };
 
 export function makeFmt(unit: 'kg' | 'lbs'): FmtHelper {

@@ -12,7 +12,7 @@
 import * as SQLite from 'expo-sqlite';
 import {
   Routine, Session, SessionExercise, Measurement, Profile,
-  FmtHelper, Override, SEED, SEED_PB, uid, sessionVolume,
+  Override, SEED, uid, sessionVolume,
 } from './data';
 
 export type SessionRow = {
@@ -328,26 +328,93 @@ export async function addMeasurementDb(m: Measurement): Promise<void> {
   );
 }
 
-// ── Seed data (first-time install) ────────────────────────────
-export async function seedIfEmpty(): Promise<void> {
+export async function deleteMeasurementDb(id: string): Promise<void> {
   const d = await db();
-  const row = await d.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM sessions');
-  if ((row?.n ?? 0) > 0) return; // already seeded
-
-  // Seed routines
-  for (const r of SEED.routines) await saveRoutine(r);
-
-  // Seed history
-  for (const s of SEED.history) await saveSession(s);
-
-  // Seed measurements
-  for (const m of SEED.measurements) {
-    await d.runAsync(
-      'INSERT OR IGNORE INTO measurements (id, at, weight_kg, body_fat) VALUES (?, ?, ?, ?)',
-      [m.id, m.at, m.weightKg, m.bodyFat ?? null]
-    );
-  }
+  await d.runAsync('DELETE FROM measurements WHERE id = ?', [id]);
 }
+
+// ── Export / Import ───────────────────────────────────────────
+
+export type FitLoopExport = {
+  version: 1;
+  exportedAt: number;
+  profile: Profile;
+  routines: Routine[];
+  sessions: Session[];
+  measurements: Measurement[];
+};
+
+export async function exportAllData(profile: Profile): Promise<FitLoopExport> {
+  const d = await db();
+  const routines = await loadRoutines();
+  const sessionRows = await d.getAllAsync<SessionRow>(
+    'SELECT * FROM sessions ORDER BY started_at ASC'
+  );
+  const sessions = await Promise.all(sessionRows.map(r => hydrateSession(d, r)));
+  const measurements = await loadMeasurements(0);
+  return { version: 1, exportedAt: Date.now(), profile, routines, sessions, measurements };
+}
+
+export type ImportResult = { routines: number; sessions: number; measurements: number };
+
+export async function importAllData(data: FitLoopExport): Promise<ImportResult> {
+  const d = await db();
+  let routines = 0, sessions = 0, measurements = 0;
+  await d.withTransactionAsync(async () => {
+    for (const r of data.routines) {
+      const exists = await d.getFirstAsync<{ id: string }>('SELECT id FROM routines WHERE id = ?', [r.id]);
+      if (!exists) {
+        await d.runAsync(
+          'INSERT INTO routines (id, name, color, days) VALUES (?, ?, ?, ?)',
+          [r.id, r.name, r.color, JSON.stringify(r.days)]
+        );
+        for (let i = 0; i < r.exercises.length; i++) {
+          await d.runAsync(
+            'INSERT INTO routine_exercises (id, routine_id, name, position) VALUES (?, ?, ?, ?)',
+            [uid(), r.id, r.exercises[i], i]
+          );
+        }
+        routines++;
+      }
+    }
+    for (const s of data.sessions) {
+      const exists = await d.getFirstAsync<{ id: string }>('SELECT id FROM sessions WHERE id = ?', [s.id]);
+      if (!exists) {
+        await d.runAsync(
+          `INSERT INTO sessions (id, routine_id, routine_name, started_at, ended_at, duration_sec, notes, volume) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [s.id, s.routineId ?? null, s.routineName, s.startedAt, s.endedAt, s.durationSec, s.notes, s.volume]
+        );
+        for (let ei = 0; ei < s.exercises.length; ei++) {
+          const ex = s.exercises[ei];
+          const sexId = ex.id || uid();
+          await d.runAsync(
+            'INSERT INTO session_exercises (id, session_id, name, position) VALUES (?, ?, ?, ?)',
+            [sexId, s.id, ex.name, ei]
+          );
+          for (const set of ex.sets) {
+            await d.runAsync(
+              'INSERT INTO exercise_sets (id, session_exercise_id, reps, kg) VALUES (?, ?, ?, ?)',
+              [uid(), sexId, set.reps, set.kg]
+            );
+          }
+        }
+        sessions++;
+      }
+    }
+    for (const m of data.measurements) {
+      const exists = await d.getFirstAsync<{ id: string }>('SELECT id FROM measurements WHERE id = ?', [m.id]);
+      if (!exists) {
+        await d.runAsync(
+          'INSERT INTO measurements (id, at, weight_kg, body_fat) VALUES (?, ?, ?, ?)',
+          [m.id, m.at, m.weightKg, m.bodyFat ?? null]
+        );
+        measurements++;
+      }
+    }
+  });
+  return { routines, sessions, measurements };
+}
+
 
 // ── Internal: hydrate a session row with exercises + sets ─────
 async function hydrateSession(d: SQLite.SQLiteDatabase, row: SessionRow): Promise<Session> {
