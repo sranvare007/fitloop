@@ -36,17 +36,24 @@ function WeekStrip() {
   );
 }
 
-function RoutineCard({ routine, onStart, onSwap, swappedFrom }: any) {
+function RoutineCard({ routine, onStart, onSwap, swappedFrom, todaySession }: any) {
   const { t, fmt } = useApp();
-  const shown = routine.exercises.slice(0, 4);
-  const more = routine.exercises.length - shown.length;
+  const done = !!todaySession;
+  const exerciseNames: string[] = done
+    ? todaySession.exercises.map((e: any) => e.name)
+    : routine.exercises;
+  const shown = exerciseNames.slice(0, 4);
+  const more = exerciseNames.length - shown.length;
+
   return (
-    <View style={{ backgroundColor: t.surface, borderRadius: 24, padding: 18, borderWidth: 1, borderColor: t.line2, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 20, overflow: 'hidden' }}>
+    <View style={{ backgroundColor: t.surface, borderRadius: 24, padding: 18, borderWidth: 1, borderColor: done ? t.lime : t.line2, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 20, overflow: 'hidden' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
         <View style={{ width: 9, height: 9, borderRadius: 99, backgroundColor: routine.color }} />
-        <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.mut, letterSpacing: 0.3 }}>{swappedFrom ? 'TODAY · SWAPPED' : "TODAY'S ROUTINE"}</Text>
+        <Text style={{ fontSize: 12.5, fontWeight: '800', color: done ? t.limeInk : t.mut, letterSpacing: 0.3 }}>
+          {done ? 'COMPLETED TODAY' : swappedFrom ? 'TODAY · SWAPPED' : "TODAY'S ROUTINE"}
+        </Text>
         <View style={{ flex: 1 }} />
-        {onSwap && (
+        {!done && onSwap && (
           <Pressable onPress={onSwap} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: t.line, backgroundColor: t.elev, paddingVertical: 6, paddingHorizontal: 11, borderRadius: 9 }}>
             <Icon name="swap" size={14} color={t.text} sw={2.2} />
             <Text style={{ fontWeight: '800', fontSize: 12.5, color: t.text }}>Swap</Text>
@@ -54,17 +61,23 @@ function RoutineCard({ routine, onStart, onSwap, swappedFrom }: any) {
         )}
       </View>
       <Text style={{ fontSize: 30, fontWeight: '800', color: t.text, letterSpacing: -0.6, marginTop: 8 }}>{routine.name}</Text>
-      {swappedFrom && <Text style={{ fontSize: 12.5, color: t.mut, fontWeight: '600', marginTop: 3 }}>Replacing <Text style={{ color: t.text, fontWeight: '700' }}>{swappedFrom}</Text> for today</Text>}
+      {!done && swappedFrom && <Text style={{ fontSize: 12.5, color: t.mut, fontWeight: '600', marginTop: 3 }}>Replacing <Text style={{ color: t.text, fontWeight: '700' }}>{swappedFrom}</Text> for today</Text>}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 14 }}>
         {shown.map((e: string) => (
-          <View key={e} style={{ backgroundColor: t.elev, paddingVertical: 7, paddingHorizontal: 11, borderRadius: 10 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: t.text }}>{e}</Text>
+          <View key={e} style={{ backgroundColor: done ? t.limeSoft : t.elev, paddingVertical: 7, paddingHorizontal: 11, borderRadius: 10 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: done ? t.limeInk : t.text }}>{e}</Text>
           </View>
         ))}
         {more > 0 && <Text style={{ fontSize: 13, fontWeight: '700', color: t.mut, paddingVertical: 7 }}>+{more} more</Text>}
       </View>
       <View style={{ marginTop: 18 }}>
-        <Btn t={t} full size="lg" onPress={onStart} icon="play" style={{ borderRadius: 16 }}>Start workout</Btn>
+        {done
+          ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: t.limeSoft, borderRadius: 16, paddingVertical: 14 }}>
+              <Icon name="check" size={18} color={t.limeInk} sw={2.8} />
+              <Text style={{ fontWeight: '800', fontSize: 15.5, color: t.limeInk }}>Done</Text>
+            </View>
+          : <Btn t={t} full size="lg" onPress={onStart} icon="play" style={{ borderRadius: 16 }}>Start workout</Btn>
+        }
       </View>
     </View>
   );
@@ -161,6 +174,10 @@ export function HomeScreen() {
   const ov = state.override && state.override.day === today ? state.routines.find(r => r.id === state.override!.id) : null;
   const todays = ov ? [ov] : sched;
   const swappedFrom = ov ? (sched.length ? sched.map(r => r.name).join(' / ') : 'a rest day') : null;
+
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const sessionForRoutine = (routineId: string) =>
+    recentHistory.find(s => s.routineId === routineId && s.startedAt >= todayStart.getTime()) ?? null;
   const [pickerOpen, setPickerOpen] = useState(false);
   const recent = recentHistory.slice(0, 3);
   const hr = new Date().getHours();
@@ -187,7 +204,7 @@ export function HomeScreen() {
       {/* Today's routine */}
       {todays.length > 0
         ? <View style={{ gap: 12 }}>
-            {todays.map(r => <RoutineCard key={r.id} routine={r} onStart={() => startSession(r)} onSwap={() => setPickerOpen(true)} swappedFrom={swappedFrom} />)}
+            {todays.map(r => <RoutineCard key={r.id} routine={r} onStart={() => startSession(r)} onSwap={() => setPickerOpen(true)} swappedFrom={swappedFrom} todaySession={sessionForRoutine(r.id)} />)}
           </View>
         : <View style={{ backgroundColor: t.surface, borderRadius: 24, padding: 26, borderWidth: 1, borderColor: t.line2, alignItems: 'center' }}>
             <View style={{ width: 60, height: 60, borderRadius: 18, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
