@@ -23,6 +23,8 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
   const [exs, setExs] = useState<{ id: string; name: string }[]>((routine?.exercises || []).map(e => ({ id: uid(), name: e })));
   const [days, setDays] = useState<Set<number>>(new Set(routine?.days || []));
   const [input, setInput] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
   const color = routine?.color || ROUTINE_COLORS[Math.floor(Math.random() * ROUTINE_COLORS.length)];
   const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
@@ -32,7 +34,23 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
     setExs([...exs, { id: uid(), name: v }]);
     setInput('');
   };
-  const removeEx = (id: string) => setExs(exs.filter(e => e.id !== id));
+  const removeEx = (id: string) => { setExs(exs.filter(e => e.id !== id)); if (editingId === id) setEditingId(null); };
+  const moveEx = (id: string, dir: -1 | 1) => {
+    setExs(prev => {
+      const idx = prev.findIndex(e => e.id === id);
+      const next = idx + dir;
+      if (next < 0 || next >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return arr;
+    });
+  };
+  const startEdit = (id: string, currentName: string) => { setEditingId(id); setEditingName(currentName); };
+  const confirmEdit = (id: string) => {
+    const v = editingName.trim();
+    if (v) setExs(exs.map(e => e.id === id ? { ...e, name: v } : e));
+    setEditingId(null);
+  };
   const toggleDay = (d: number) => { const n = new Set(days); n.has(d) ? n.delete(d) : n.add(d); setDays(n); };
   const canSave = name.trim() && exs.length > 0;
   const save = () => canSave && onSave({ id: routine?.id || uid(), name: name.trim(), exercises: exs.map(e => e.name), days: [...days], color });
@@ -50,17 +68,49 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
           EXERCISES <Text style={{ color: t.mut2 }}>· {exs.length}</Text>
         </Text>
         <View style={{ gap: 7, marginBottom: 10 }}>
-          {exs.map((e, i) => (
-            <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: t.surface, borderRadius: 13, padding: 11, borderWidth: 1, borderColor: t.line2 }}>
-              <View style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut }}>{i + 1}</Text>
+          {exs.map((e, i) => {
+            const isEditing = editingId === e.id;
+            return (
+              <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isEditing ? t.surface2 : t.surface, borderRadius: 13, paddingVertical: 9, paddingHorizontal: 11, borderWidth: 1, borderColor: isEditing ? t.line : t.line2 }}>
+                <View style={{ width: 22, height: 22, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut }}>{i + 1}</Text>
+                </View>
+                {isEditing ? (
+                  <TextInput
+                    value={editingName}
+                    onChangeText={setEditingName}
+                    onSubmitEditing={() => confirmEdit(e.id)}
+                    autoFocus
+                    returnKeyType="done"
+                    style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: 15.5, padding: 0 }}
+                  />
+                ) : (
+                  <Pressable onPress={() => startEdit(e.id, e.name)} style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15.5, fontWeight: '700', color: t.text }}>{e.name}</Text>
+                  </Pressable>
+                )}
+                {isEditing ? (
+                  <Pressable onPress={() => confirmEdit(e.id)} style={{ padding: 4 }}>
+                    <Icon name="check" size={17} color={t.limeInk} sw={2.6} />
+                  </Pressable>
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: 2 }}>
+                    <Pressable onPress={() => moveEx(e.id, -1)} disabled={i === 0} style={{ padding: 5, opacity: i === 0 ? 0.25 : 1 }}>
+                      <View style={{ transform: [{ rotate: '180deg' }] }}>
+                        <Icon name="chevD" size={15} color={t.mut} sw={2.2} />
+                      </View>
+                    </Pressable>
+                    <Pressable onPress={() => moveEx(e.id, 1)} disabled={i === exs.length - 1} style={{ padding: 5, opacity: i === exs.length - 1 ? 0.25 : 1 }}>
+                      <Icon name="chevD" size={15} color={t.mut} sw={2.2} />
+                    </Pressable>
+                  </View>
+                )}
+                <Pressable onPress={() => removeEx(e.id)} style={{ padding: 4 }}>
+                  <Icon name="x" size={16} color={t.mut2} sw={2.2} />
+                </Pressable>
               </View>
-              <Text style={{ flex: 1, fontSize: 15.5, fontWeight: '700', color: t.text }}>{e.name}</Text>
-              <Pressable onPress={() => removeEx(e.id)} style={{ padding: 4 }}>
-                <Icon name="x" size={16} color={t.mut2} sw={2.2} />
-              </Pressable>
-            </View>
-          ))}
+            );
+          })}
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TextInput value={input} onChangeText={setInput} onSubmitEditing={() => addExercise()} placeholder="Add an exercise…" placeholderTextColor={t.mut2} returnKeyType="done"
