@@ -85,6 +85,37 @@ function RoutineCard({ routine, onStart, onSwap, swappedFrom, todaySession, isIn
   );
 }
 
+function InputRow({ t, fmt, w, bf, setW, setBf, onSave, autoFocus }: {
+  t: any; fmt: any; w: string; bf: string;
+  setW: (v: string) => void; setBf: (v: string) => void;
+  onSave: () => void; autoFocus?: boolean;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 9 }}>
+      <View style={{ flex: 1, backgroundColor: t.surface2, borderRadius: 13, padding: 8, borderWidth: 1, borderColor: t.line }}>
+        <Text style={{ fontSize: 9.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.4 }}>WEIGHT</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+          <TextInput value={w} onChangeText={v => setW(v.replace(/[^0-9.]/g, ''))} placeholder="0.0" placeholderTextColor={t.mut2} keyboardType="decimal-pad" autoFocus={autoFocus}
+            style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: 18, padding: 0 }} />
+          <Text style={{ fontSize: 11, color: t.mut, fontWeight: '700' }}>{fmt.wlabel}</Text>
+        </View>
+      </View>
+      <View style={{ flex: 1, backgroundColor: t.surface2, borderRadius: 13, padding: 8, borderWidth: 1, borderColor: t.line }}>
+        <Text style={{ fontSize: 9.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.4 }}>BODY FAT</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+          <TextInput value={bf} onChangeText={v => setBf(v.replace(/[^0-9.]/g, ''))} placeholder="—" placeholderTextColor={t.mut2} keyboardType="decimal-pad"
+            style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: 18, padding: 0 }} />
+          <Text style={{ fontSize: 11, color: t.mut, fontWeight: '700' }}>%</Text>
+        </View>
+      </View>
+      <Pressable onPress={onSave}
+        style={{ backgroundColor: w ? t.lime : t.elev, paddingHorizontal: 16, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontWeight: '800', fontSize: 14, color: w ? t.onLime : t.mut2 }}>Save</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function MeasureCard() {
   const { t, fmt, addMeasurement, lastMeasurement } = useApp();
   const loggedToday = lastMeasurement && (Date.now() - lastMeasurement.at < DAY_MS) && new Date(lastMeasurement.at).getDate() === new Date().getDate();
@@ -99,30 +130,9 @@ function MeasureCard() {
     setEditing(true);
   };
 
-  const InputRow = ({ isEdit }: { isEdit: boolean }) => (
-    <View style={{ flexDirection: 'row', gap: 9 }}>
-      <View style={{ flex: 1, backgroundColor: t.surface2, borderRadius: 13, padding: 8, borderWidth: 1, borderColor: t.line }}>
-        <Text style={{ fontSize: 9.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.4 }}>WEIGHT</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-          <TextInput value={w} onChangeText={v => setW(v.replace(/[^0-9.]/g, ''))} placeholder="0.0" placeholderTextColor={t.mut2} keyboardType="decimal-pad" autoFocus={isEdit}
-            style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: 18, padding: 0 }} />
-          <Text style={{ fontSize: 11, color: t.mut, fontWeight: '700' }}>{fmt.wlabel}</Text>
-        </View>
-      </View>
-      <View style={{ flex: 1, backgroundColor: t.surface2, borderRadius: 13, padding: 8, borderWidth: 1, borderColor: t.line }}>
-        <Text style={{ fontSize: 9.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.4 }}>BODY FAT</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-          <TextInput value={bf} onChangeText={v => setBf(v.replace(/[^0-9.]/g, ''))} placeholder="—" placeholderTextColor={t.mut2} keyboardType="decimal-pad"
-            style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: 18, padding: 0 }} />
-          <Text style={{ fontSize: 11, color: t.mut, fontWeight: '700' }}>%</Text>
-        </View>
-      </View>
-      <Pressable onPress={() => { if (w) { addMeasurement(+w, bf ? +bf : null); setDone(true); setEditing(false); } }}
-        style={{ backgroundColor: w ? t.lime : t.elev, paddingHorizontal: 16, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontWeight: '800', fontSize: 14, color: w ? t.onLime : t.mut2 }}>Save</Text>
-      </Pressable>
-    </View>
-  );
+  const handleSave = () => {
+    if (w) { addMeasurement(+w, bf ? +bf : null); setDone(true); setEditing(false); }
+  };
 
   if (editing) {
     return (
@@ -134,7 +144,7 @@ function MeasureCard() {
             <Text style={{ color: t.mut, fontWeight: '700', fontSize: 14 }}>Cancel</Text>
           </Pressable>
         </View>
-        <InputRow isEdit />
+        <InputRow t={t} fmt={fmt} w={w} bf={bf} setW={setW} setBf={setBf} onSave={handleSave} autoFocus />
       </View>
     );
   }
@@ -164,7 +174,7 @@ function MeasureCard() {
         <Icon name="ruler" size={18} color={t.mut} sw={2} />
         <Text style={{ fontSize: 14.5, fontWeight: '800', color: t.text }}>Log today's measurements</Text>
       </View>
-      <InputRow isEdit={false} />
+      <InputRow t={t} fmt={fmt} w={w} bf={bf} setW={setW} setBf={setBf} onSave={handleSave} />
     </View>
   );
 }
