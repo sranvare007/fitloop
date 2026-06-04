@@ -22,9 +22,9 @@ function WeekStrip() {
             <View style={{
               width: '100%', height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center',
               backgroundColor: done ? t.lime : assigned ? t.elev : 'transparent',
-              borderWidth: isToday ? 1.8 : 1,
-              borderColor: isToday ? t.orange : assigned ? t.line : t.line2,
-              borderStyle: assigned || isToday ? 'solid' : 'dashed',
+              borderWidth: isToday ? 1.8 : 1.2,
+              borderColor: isToday ? t.orange : assigned ? t.line : t.mut,
+              borderStyle: assigned ? 'solid' : 'dashed',
             }}>
               {done
                 ? <Icon name="check" size={16} color={t.onLime} sw={3} />
@@ -243,7 +243,7 @@ export function HomeScreen() {
         ? <View style={{ gap: 12 }}>
             {todays.map(r => <RoutineCard key={r.id} routine={r} onStart={() => startSession(r)} onSwap={() => setPickerOpen(true)} swappedFrom={swappedFrom} todaySession={sessionForRoutine(r.id)} isInProgress={inProgressSession?.routineId === r.id} onResume={resumeSession} />)}
           </View>
-        : <View style={{ backgroundColor: t.surface, borderRadius: 24, padding: 26, borderWidth: 1, borderColor: t.line2, alignItems: 'center' }}>
+        : <View style={{ backgroundColor: t.surface, borderRadius: 24, padding: 26, borderWidth: 1, borderStyle: 'dashed', borderColor: t.line2, alignItems: 'center' }}>
             <View style={{ width: 60, height: 60, borderRadius: 18, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
               <Icon name="moon" size={28} color={t.mut} sw={1.8} />
             </View>
