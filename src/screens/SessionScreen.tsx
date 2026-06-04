@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Pressable, ScrollView, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,12 +7,15 @@ import { Btn, IconBtn, Chip, Sheet, MenuRow, Stat, AppText as Text, AppTextInput
 import { Icon, DotsMenu } from '../components/Icon';
 import { Routine, SEED_PB, KNOWN_EXERCISES, fmtClock, fmtDur, uid, sessionVolume, sessionSets } from '../data';
 
-function KeypadBar({ t, field, onKey, onClose, step }: any) {
-  const Key = ({ label, onPress, accent, big }: any) => (
+function Key({ label, onPress, accent, big, t }: { label: string; onPress: () => void; accent?: boolean; big?: boolean; t: any }) {
+  return (
     <Pressable onPress={onPress} style={({ pressed }) => [{ height: 62, borderRadius: 14, backgroundColor: accent ? t.lime : t.elev, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.75 : 1 }]}>
       <Text style={{ fontWeight: '800', fontSize: big ? 16 : 24, color: accent ? t.onLime : t.text }}>{label}</Text>
     </Pressable>
   );
+}
+
+function KeypadBar({ t, field, onKey, onClose, step }: any) {
   return (
     <View style={{ backgroundColor: t.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, borderTopWidth: 1, borderTopColor: t.line, padding: 14, paddingBottom: 26, shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.3, shadowRadius: 40 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6, marginBottom: 12 }}>
@@ -24,27 +27,23 @@ function KeypadBar({ t, field, onKey, onClose, step }: any) {
         </Pressable>
       </View>
       <View style={{ flexDirection: 'column', gap: 8 }}>
-        {/* Row 1 */}
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {['1','2','3'].map(d => <View key={d} style={{ flex: 1 }}><Key label={d} onPress={() => onKey(d)} /></View>)}
-          <View style={{ flex: 1 }}><Key label={`+${step}`} onPress={() => onKey('inc')} accent big /></View>
+          {['1','2','3'].map(d => <View key={d} style={{ flex: 1 }}><Key t={t} label={d} onPress={() => onKey(d)} /></View>)}
+          <View style={{ flex: 1 }}><Key t={t} label={`+${step}`} onPress={() => onKey('inc')} accent big /></View>
         </View>
-        {/* Row 2 */}
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {['4','5','6'].map(d => <View key={d} style={{ flex: 1 }}><Key label={d} onPress={() => onKey(d)} /></View>)}
-          <View style={{ flex: 1 }}><Key label={`−${step}`} onPress={() => onKey('dec')} big /></View>
+          {['4','5','6'].map(d => <View key={d} style={{ flex: 1 }}><Key t={t} label={d} onPress={() => onKey(d)} /></View>)}
+          <View style={{ flex: 1 }}><Key t={t} label={`−${step}`} onPress={() => onKey('dec')} big /></View>
         </View>
-        {/* Row 3 */}
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {['7','8','9'].map(d => <View key={d} style={{ flex: 1 }}><Key label={d} onPress={() => onKey(d)} /></View>)}
-          <View style={{ flex: 1 }}><Key label="DEL" onPress={() => onKey('del')} big /></View>
+          {['7','8','9'].map(d => <View key={d} style={{ flex: 1 }}><Key t={t} label={d} onPress={() => onKey(d)} /></View>)}
+          <View style={{ flex: 1 }}><Key t={t} label="DEL" onPress={() => onKey('del')} big /></View>
         </View>
-        {/* Row 4 */}
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <View style={{ flex: 1 }}>
-            {field === 'kg' ? <Key label="." onPress={() => onKey('.')} /> : <View style={{ height: 62 }} />}
+            {field === 'kg' ? <Key t={t} label="." onPress={() => onKey('.')} /> : <View style={{ height: 62 }} />}
           </View>
-          <View style={{ flex: 1 }}><Key label="0" onPress={() => onKey('0')} /></View>
+          <View style={{ flex: 1 }}><Key t={t} label="0" onPress={() => onKey('0')} /></View>
           <View style={{ flex: 2 }} />
         </View>
       </View>
@@ -259,7 +258,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
     }));
   };
 
-  const onKey = (k: string) => {
+  const onKey = useCallback((k: string) => {
     if (editIdx < 0 || !field) return;
     const set = exs[editIdx].sets[editSetIdx];
     const cur = field === 'reps' ? String(set.reps) : String(set.w);
@@ -277,7 +276,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
     if (next.replace('.', '').length > 5) return;
     const num = field === 'reps' ? Math.max(0, parseInt(next || '0', 10)) : (parseFloat(next) || 0);
     setSetValue(editIdx, editSetIdx, field, field === 'reps' ? num : (next.endsWith('.') ? next : num));
-  };
+  }, [editIdx, editSetIdx, exs, field, fresh, fmt.step]);
 
   const addSet = (ei: number) => {
     setExs(prev => prev.map((e, j) => {
