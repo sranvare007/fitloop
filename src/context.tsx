@@ -16,6 +16,7 @@ import {
   loadStrengthSeries, loadAllExerciseNames,
   exportAllData, importAllData, FitLoopExport,
   saveInProgressSessionDb, loadInProgressSessionDb, clearInProgressSessionDb, InProgressSession,
+  loadAllSetBests, SetBest,
   StrengthPoint,
 } from './db';
 import { File, Paths } from 'expo-file-system';
@@ -57,6 +58,7 @@ export interface AppContextValue {
   // Async data loaders for screens that need more
   loadMoreSessions: (limit: number, offset: number) => Promise<Session[]>;
   loadStrengthData: (exercise: string, cutoffMs: number) => Promise<StrengthPoint[]>;
+  loadSetBests: (names: string[]) => Promise<Record<string, SetBest[]>>;
   loadBodyData: (cutoffMs: number) => Promise<{ wSeries: any[]; bfSeries: any[] }>;
   loadExerciseNames: () => Promise<string[]>;
 
@@ -215,6 +217,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Async data loaders
     loadMoreSessions: (limit, offset) => loadSessionPage(limit, offset),
     loadStrengthData: (exercise, cutoffMs) => loadStrengthSeries(exercise, cutoffMs, unit),
+    loadSetBests: (names) => loadAllSetBests(names),
     loadBodyData: async (cutoffMs) => {
       const measurements = await loadMeasurements(cutoffMs);
       const LBx = 2.20462;

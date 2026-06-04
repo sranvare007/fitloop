@@ -51,17 +51,23 @@ function KeypadBar({ t, field, onKey, onClose, step }: any) {
   );
 }
 
-function SetRow({ i, set, t, fmt, onEdit, onDelete }: any) {
+function SetRow({ i, set, t, fmt, onEdit, onDelete, prevBest }: any) {
   return (
-    <Pressable onPress={onEdit} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 6, borderRadius: 12, marginBottom: 3 }}>
+    <Pressable onPress={onEdit} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 6, borderRadius: 12, marginBottom: 3 }}>
       <Pressable onPress={onDelete} style={{ width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
         <Icon name="trash" size={16} color={t.danger} sw={1.9} />
       </Pressable>
       <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
         <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.mut }}>{i + 1}</Text>
       </View>
-      <Text style={{ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text }}>{set.reps}</Text>
-      <Text style={{ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: t.text }}>{set.w}</Text>
+      <View style={{ flex: 1, alignItems: 'center' }}>
+        <Text style={{ fontSize: 18, fontWeight: '800', color: t.text }}>{set.reps}</Text>
+        {prevBest != null && <Text style={{ fontSize: 10.5, fontWeight: '700', color: t.mut2 }}>{prevBest.reps}</Text>}
+      </View>
+      <View style={{ flex: 1, alignItems: 'center' }}>
+        <Text style={{ fontSize: 18, fontWeight: '800', color: t.text }}>{set.w}</Text>
+        {prevBest != null && <Text style={{ fontSize: 10.5, fontWeight: '700', color: t.mut2 }}>{fmt.w(prevBest.kg)}</Text>}
+      </View>
       <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: t.limeSoft, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name="check" size={12} color={t.limeInk} sw={2.6} />
       </View>
@@ -69,13 +75,19 @@ function SetRow({ i, set, t, fmt, onEdit, onDelete }: any) {
   );
 }
 
-function SetEdit({ i, set, t, fmt, field, onField, onStep }: any) {
+function SetEdit({ i, set, t, fmt, field, onField, onStep, prevBest }: any) {
   return (
     <View style={{ backgroundColor: t.bg === '#0C0D10' ? '#0E0F13' : t.surface2, borderRadius: 16, padding: 13, marginBottom: 8, borderWidth: 1, borderColor: t.line }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: prevBest ? 8 : 12 }}>
         <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.orange, letterSpacing: 0.3 }}>SET {i + 1}</Text>
         <Text style={{ fontSize: 12, color: t.mut2, fontWeight: '600' }}>tap a number to type</Text>
       </View>
+      {prevBest != null && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: t.elev, alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8, marginBottom: 12 }}>
+          <Text style={{ fontSize: 11, fontWeight: '800', color: t.mut2, letterSpacing: 0.3 }}>PREV BEST</Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: t.mut }}>{fmt.w(prevBest.kg)}{fmt.wlabel} × {prevBest.reps}</Text>
+        </View>
+      )}
       <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
         {/* Reps field */}
         <View style={{ flex: 1, alignItems: 'center' }}>
@@ -113,8 +125,9 @@ function SetEdit({ i, set, t, fmt, field, onField, onStep }: any) {
   );
 }
 
-function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu }: any) {
+function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests }: any) {
   const pbStr = ex.pb ? `${fmt.w(ex.pb[0])} ${fmt.wlabel} × ${ex.pb[1]}` : '—';
+  const bests: { position: number; reps: number; kg: number }[] = setBests?.[ex.name] ?? [];
   return (
     <View style={{ backgroundColor: t.surface, borderRadius: 20, borderWidth: 1, borderColor: t.line2, overflow: 'hidden' }}>
       <Pressable onPress={onToggle} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, padding: 15 }}>
@@ -145,19 +158,26 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
           {ex.sets.length > 0 && (
             <View style={{ flexDirection: 'row', paddingHorizontal: 6, paddingBottom: 7 }}>
               <View style={{ width: 34 }} /><View style={{ width: 30 }} />
-              <Text style={{ flex: 1, textAlign: 'center', fontSize: 10.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.6 }}>REPS</Text>
-              <Text style={{ flex: 1, textAlign: 'center', fontSize: 10.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.6 }}>{fmt.wlabel.toUpperCase()}</Text>
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.6 }}>REPS</Text>
+                {bests.length > 0 && <Text style={{ fontSize: 9, fontWeight: '700', color: t.mut2, opacity: 0.6 }}>PREV</Text>}
+              </View>
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.6 }}>{fmt.wlabel.toUpperCase()}</Text>
+                {bests.length > 0 && <Text style={{ fontSize: 9, fontWeight: '700', color: t.mut2, opacity: 0.6 }}>PREV</Text>}
+              </View>
               <View style={{ width: 22 }} />
             </View>
           )}
           {ex.sets.map((s: any, i: number) => {
             const key = `${idx}:${i}`;
+            const prevBest = bests.find(b => b.position === i) ?? null;
             return editKey === key ? (
-              <SetEdit key={i} i={i} set={s} t={t} fmt={fmt} field={field}
+              <SetEdit key={i} i={i} set={s} t={t} fmt={fmt} field={field} prevBest={prevBest}
                 onField={(f: string) => setField(field === f ? null : f)}
                 onStep={(f: string, d: number) => updateSet(idx, i, f, d, true)} />
             ) : (
-              <SetRow key={i} i={i} set={s} t={t} fmt={fmt}
+              <SetRow key={i} i={i} set={s} t={t} fmt={fmt} prevBest={prevBest}
                 onEdit={() => { setEditKey(key); setField('kg'); }}
                 onDelete={() => deleteSet(idx, i)} />
             );
@@ -176,7 +196,7 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
 }
 
 export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; exercises: any[] } | null }) {
-  const { t, fmt, toast, updateInProgressSession } = useApp();
+  const { t, fmt, toast, updateInProgressSession, loadSetBests } = useApp();
   const insets = useSafeAreaInsets();
   const seedPb = SEED_PB;
 
@@ -190,6 +210,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
       ? resumeData.exercises
       : (routine?.exercises || ['Bench Press']).map((n, i) => mkEx(n, i === 0))
   );
+  const [setBests, setSetBests] = useState<Record<string, { position: number; reps: number; kg: number }[]>>({});
   const [open, setOpen] = useState<number>(0);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [field, setField] = useState<string | null>(null);
@@ -238,6 +259,12 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
     persistTimer.current = setTimeout(() => updateInProgressSession(exs), 400);
     return () => { if (persistTimer.current) clearTimeout(persistTimer.current); };
   }, [exs]);
+
+  // Reload per-set bests whenever the exercise list changes (mount + swaps)
+  useEffect(() => {
+    const names = [...new Set(exs.map((e: any) => e.name as string))];
+    loadSetBests(names).then(setSetBests).catch(() => {});
+  }, [exs.map((e: any) => e.name).join('|')]);
 
   const editIdx = editKey ? +editKey.split(':')[0] : -1;
   const editSetIdx = editKey ? +editKey.split(':')[1] : -1;
@@ -351,7 +378,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
             editKey={editKey} setEditKey={setEditKey} field={field}
             setField={(f: string | null) => { if (f === null) dismissKeypad(); else { setField(f); setFresh(true); } }}
             updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
-            onMenu={() => setMenu(i)} />
+            onMenu={() => setMenu(i)} setBests={setBests} />
         ))}
         <Pressable onPress={() => setAddExOpen(true)} style={({ pressed }) => [{ padding: 15, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.line, backgroundColor: t.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.7 : 1 }]}>
           <Icon name="plus" size={18} color={t.orange} sw={2.6} />

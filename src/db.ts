@@ -90,6 +90,12 @@ export async function initDb(): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_measurements_at ON measurements(at DESC);
   `);
+
+  // Migrate: add position column to exercise_sets if missing (safe no-op if already present)
+  const esColumns = await d.getAllAsync<{ name: string }>('PRAGMA table_info(exercise_sets)');
+  if (!esColumns.some(c => c.name === 'position')) {
+    await d.execAsync('ALTER TABLE exercise_sets ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
+  }
 }
 
 // ── Settings ─────────────────────────────────────────────────
@@ -206,8 +212,8 @@ export async function saveSession(s: Session): Promise<void> {
       for (let si = 0; si < ex.sets.length; si++) {
         const set = ex.sets[si];
         await d.runAsync(
-          'INSERT INTO exercise_sets (id, session_exercise_id, reps, kg) VALUES (?, ?, ?, ?)',
-          [uid(), sexId, set.reps, set.kg]
+          'INSERT INTO exercise_sets (id, session_exercise_id, reps, kg, position) VALUES (?, ?, ?, ?, ?)',
+          [uid(), sexId, set.reps, set.kg, si]
         );
       }
     }
@@ -414,10 +420,11 @@ export async function importAllData(data: FitLoopExport): Promise<ImportResult> 
             'INSERT INTO session_exercises (id, session_id, name, position) VALUES (?, ?, ?, ?)',
             [sexId, s.id, ex.name, ei]
           );
-          for (const set of ex.sets) {
+          for (let si = 0; si < ex.sets.length; si++) {
+            const set = ex.sets[si];
             await d.runAsync(
-              'INSERT INTO exercise_sets (id, session_exercise_id, reps, kg) VALUES (?, ?, ?, ?)',
-              [uid(), sexId, set.reps, set.kg]
+              'INSERT INTO exercise_sets (id, session_exercise_id, reps, kg, position) VALUES (?, ?, ?, ?, ?)',
+              [uid(), sexId, set.reps, set.kg, si]
             );
           }
         }
@@ -464,6 +471,39 @@ async function hydrateSession(d: SQLite.SQLiteDatabase, row: SessionRow): Promis
     volume: row.volume,
     exercises,
   };
+}
+
+// ── Per-set bests ─────────────────────────────────────────────
+export type SetBest = { position: number; reps: number; kg: number };
+
+/**
+ * For each exercise name, returns the all-time best set at each position
+ * (highest kg, tiebroken by highest reps). Uses a window function so it's
+ * one round-trip regardless of how many names are passed.
+ */
+export async function loadAllSetBests(names: string[]): Promise<Record<string, SetBest[]>> {
+  if (!names.length) return {};
+  const d = await db();
+  const ph = names.map(() => '?').join(', ');
+  const rows = await d.getAllAsync<{ n: string; position: number; reps: number; kg: number }>(
+    `SELECT best.n, best.position, best.reps, best.kg
+     FROM (
+       SELECT se.name AS n, es.position, es.kg, es.reps,
+         ROW_NUMBER() OVER (PARTITION BY se.name, es.position ORDER BY es.kg DESC, es.reps DESC) AS rk
+       FROM exercise_sets es
+       JOIN session_exercises se ON se.id = es.session_exercise_id
+       WHERE se.name IN (${ph})
+     ) best
+     WHERE best.rk = 1
+     ORDER BY best.n ASC, best.position ASC`,
+    names
+  );
+  const result: Record<string, SetBest[]> = {};
+  for (const row of rows) {
+    if (!result[row.n]) result[row.n] = [];
+    result[row.n].push({ position: row.position, reps: row.reps, kg: row.kg });
+  }
+  return result;
 }
 
 type REAL = number;
