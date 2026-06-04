@@ -371,7 +371,8 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
       </View>
 
       {/* Exercise list */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: keypadVisible ? 320 : 130, gap: 12 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: keypadVisible ? 320 : 130, gap: 12 }} showsVerticalScrollIndicator={false}
+        onScrollBeginDrag={() => { if (field) dismissKeypad(); }}>
         {exs.map((ex: any, i: number) => (
           <ExerciseCard key={ex.id} ex={ex} idx={i} t={t} fmt={fmt}
             isOpen={open === i} onToggle={() => setOpen(open === i ? -1 : i)}
@@ -405,12 +406,9 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
 
       {/* Keypad */}
       {keypadVisible && (
-        <>
-          <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={dismissKeypad} />
-          <Animated.View style={[{ position: 'absolute', left: 0, right: 0, bottom: 0 }, keypadAnimStyle]}>
-            <KeypadBar t={t} field={field} step={field === 'reps' ? 1 : fmt.step} onKey={onKey} onClose={dismissKeypad} />
-          </Animated.View>
-        </>
+        <Animated.View style={[{ position: 'absolute', left: 0, right: 0, bottom: 0 }, keypadAnimStyle]}>
+          <KeypadBar t={t} field={field} step={field === 'reps' ? 1 : fmt.step} onKey={onKey} onClose={dismissKeypad} />
+        </Animated.View>
       )}
 
       {/* Exercise menu */}
