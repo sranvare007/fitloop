@@ -94,7 +94,7 @@ function AppShell() {
         visible={sessionOn}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={exitSession}
+        onRequestClose={() => {}}
       >
         <SessionScreen
           routine={sessionRoutine}

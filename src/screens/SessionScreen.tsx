@@ -201,6 +201,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
   const [addExOpen, setAddExOpen] = useState(false);
   const [newExName, setNewExName] = useState('');
   const [finish, setFinish] = useState(false);
+  const [stopConfirm, setStopConfirm] = useState(false);
   const [notes, setNotes] = useState('');
   const startRef = useRef(resumeData?.startedAt ?? Date.now());
   const [elapsed, setElapsed] = useState(() => Math.round((Date.now() - startRef.current) / 1000));
@@ -334,7 +335,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
       {/* Header */}
       <View style={{ paddingTop: insets.top }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: t.line2 }}>
-          <IconBtn name="x" t={t} onPress={onExit} color={t.mut} />
+          <IconBtn name="x" t={t} onPress={() => setStopConfirm(true)} color={t.mut} />
           <View style={{ alignItems: 'center' }}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: t.text, letterSpacing: 0.1 }}>{routine?.name || 'Free Workout'}</Text>
             <Text style={{ fontSize: 12.5, color: t.limeInk, fontWeight: '700', marginTop: 1 }}>{fmtClock(elapsed)}</Text>
@@ -444,6 +445,16 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
         </View>
         <Btn t={t} full size="lg" onPress={addEx}>Add to session</Btn>
         <Text style={{ fontSize: 12, color: t.mut2, textAlign: 'center', marginTop: 12 }}>Added to this session only, not the saved routine</Text>
+      </Sheet>
+
+      {/* Stop confirmation */}
+      <Sheet open={stopConfirm} onClose={() => setStopConfirm(false)} t={t} title="Stop workout?">
+        <Text style={{ fontSize: 14, color: t.mut, fontWeight: '600', lineHeight: 21, marginTop: -8, marginBottom: 20 }}>
+          Your progress will be lost. This cannot be undone.
+        </Text>
+        <Btn t={t} variant="danger" full size="lg" onPress={onExit}>Stop workout</Btn>
+        <View style={{ height: 10 }} />
+        <Btn t={t} variant="ghost" full onPress={() => setStopConfirm(false)}>Keep going</Btn>
       </Sheet>
 
       {/* Finish summary */}
