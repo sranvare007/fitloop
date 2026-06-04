@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Pressable, ScrollView } from 'react-native';
+import { View, Pressable, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context';
 import { Btn, Sheet, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
 import { Icon } from '../components/Icon';
@@ -181,7 +182,9 @@ function MeasureCard() {
 
 export function HomeScreen() {
   const { t, fmt, state, recentHistory, weekCount, nav, startSession, swapTodayRoutine, inProgressSession, resumeSession } = useApp();
+  const insets = useSafeAreaInsets();
   const today = new Date().getDay();
+
   const sched = state.routines.filter(r => r.days.includes(today));
   const ov = state.override && state.override.day === today ? state.routines.find(r => r.id === state.override!.id) : null;
   const todays = ov ? [ov] : sched;
@@ -199,7 +202,12 @@ export function HomeScreen() {
   const greeting = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: 18, paddingBottom: 24, gap: 18 }} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={insets.top}
+    >
+    <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: 18, paddingBottom: 24, gap: 18 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       {/* Greeting */}
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <View style={{ flex: 1 }}>
@@ -325,5 +333,6 @@ export function HomeScreen() {
         </View>
       </Sheet>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
