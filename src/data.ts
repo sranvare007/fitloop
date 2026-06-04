@@ -9,6 +9,13 @@ export interface Session {
 export interface Measurement { id: string; at: number; weightKg: number; bodyFat: number | null }
 export interface Profile { name: string; age: number; gender: string; heightCm: number; weightKg: number }
 export interface Override { day: number; id: string }
+export type GymSchedule = {
+  startHour: number;
+  startMin: number;
+  endHour: number;
+  endMin: number;
+  days: number[];
+};
 
 export interface FmtHelper {
   unit: 'kg' | 'lbs';

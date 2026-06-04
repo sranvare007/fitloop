@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { makeTheme, Theme } from './theme';
 import {
-  Profile, Routine, Session, Measurement, FmtHelper, Override,
+  Profile, Routine, Session, Measurement, FmtHelper, Override, GymSchedule,
   makeFmt, sessionVolume, uid, LB, DAY_MS,
 } from './data';
+import { scheduleGymNotifications, cancelGymNotifications } from './notifications';
 import {
   initDb,
   loadSettings, saveSettings, AppSettings,
@@ -82,8 +83,10 @@ export interface AppContextValue {
   setPop: (c: string) => void;
   setTodayDay: (d: number) => void;
   swapTodayRoutine: (id: string | null) => void;
+  gymSchedule: GymSchedule | null;
+  setGymSchedule: (s: GymSchedule | null) => Promise<void>;
   replayOnboarding: () => void;
-  completeOnboarding: (p: Profile, rs: Routine[]) => void;
+  completeOnboarding: (p: Profile, rs: Routine[], gymSched?: GymSchedule | null) => void;
   clearData: () => void;
   updateProfile: (p: Profile) => void;
   exportData: () => Promise<void>;
@@ -117,6 +120,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [accent, setAccent] = useState('#FF5A2C');
   const [pop, setPop] = useState('#C6FF3A');
   const [override, setOverride] = useState<Override | null>(null);
+  const [gymSchedule, setGymScheduleState] = useState<GymSchedule | null>(null);
 
   // In-memory recent data
   const [recentHistory, setRecentHistory] = useState<Session[]>([]);
@@ -150,12 +154,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAccent(s.accent);
       setPop(s.pop);
       setOverride(s.override);
+      setGymScheduleState(s.gymSchedule);
 
       const rts = await loadRoutines();
       setRoutines(rts);
 
       const ips = await loadInProgressSessionDb();
       setInProgressSession(ips);
+
+      if (ips) {
+        sessionStartedAtRef.current = ips.startedAt;
+        const routine = ips.routineId ? rts.find(r => r.id === ips.routineId) ?? null : null;
+        setSessionRoutine(routine);
+        setSessionResumeData(ips);
+        setSessionOn(true);
+      }
 
       await refreshRecentData();
       setLoaded(true);
@@ -305,8 +318,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setOverride(ov); persistSetting({ override: ov });
     },
 
+    gymSchedule,
+    setGymSchedule: async (s) => {
+      setGymScheduleState(s);
+      await persistSetting({ gymSchedule: s });
+      if (s && s.days.length) {
+        await scheduleGymNotifications(s);
+      } else {
+        await cancelGymNotifications();
+      }
+    },
+
     replayOnboarding: () => { storage.set(KEYS.ONBOARDED, false); setOnboarded(false); },
-    completeOnboarding: async (p, rs) => {
+    completeOnboarding: async (p, rs, gymSched) => {
       setProfile(p);
       await saveSettings({ profile: p });
       for (const r of rs) {
@@ -314,6 +338,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       const updated = await loadRoutines();
       setRoutines(updated);
+      if (gymSched) {
+        setGymScheduleState(gymSched);
+        await saveSettings({ gymSchedule: gymSched });
+        await scheduleGymNotifications(gymSched).catch(() => {});
+      }
       storage.set(KEYS.ONBOARDED, true);
       setOnboarded(true);
       setActiveTab('home');

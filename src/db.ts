@@ -12,7 +12,7 @@
 import * as SQLite from 'expo-sqlite';
 import {
   Routine, Session, SessionExercise, Measurement, Profile,
-  Override, SEED, uid, sessionVolume,
+  Override, GymSchedule, SEED, uid, sessionVolume,
 } from './data';
 
 export type SessionRow = {
@@ -111,6 +111,7 @@ export interface AppSettings {
   accent: string;
   pop: string;
   override: Override | null;
+  gymSchedule: GymSchedule | null;
 }
 
 export async function loadSettings(): Promise<AppSettings> {
@@ -122,6 +123,7 @@ export async function loadSettings(): Promise<AppSettings> {
     accent: await getSetting('accent', '#FF5A2C'),
     pop: await getSetting('pop', '#C6FF3A'),
     override: JSON.parse(await getSetting('override', 'null')),
+    gymSchedule: JSON.parse(await getSetting('gymSchedule', 'null')),
   };
 }
 
@@ -135,6 +137,7 @@ export async function saveSettings(s: Partial<AppSettings>): Promise<void> {
     if (s.accent !== undefined) await setSetting('accent', s.accent);
     if (s.pop !== undefined) await setSetting('pop', s.pop);
     if (s.override !== undefined) await setSetting('override', JSON.stringify(s.override));
+    if (s.gymSchedule !== undefined) await setSetting('gymSchedule', JSON.stringify(s.gymSchedule));
   });
 }
 

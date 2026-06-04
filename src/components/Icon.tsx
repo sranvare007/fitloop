@@ -16,6 +16,7 @@ const PATHS: Record<string, string> = {
   chevR: 'M9 5l7 7-7 7',
   chevL: 'M15 5l-7 7 7 7',
   chevD: 'M5 9l7 7 7-7',
+  chevU: 'M5 15l7-7 7 7',
   grip: 'M9 6h.01 M15 6h.01 M9 12h.01 M15 12h.01 M9 18h.01 M15 18h.01',
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z M20 20l-3.5-3.5',
   star: 'M12 3.5l2.6 5.3 5.9.8-4.3 4.1 1 5.8L12 17l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z',
@@ -35,6 +36,7 @@ const PATHS: Record<string, string> = {
   swap: 'M7 4L3.5 7.5 7 11 M3.5 7.5H17 M17 20l3.5-3.5L17 13 M20.5 16.5H7',
   upload: 'M12 16V4 M7 9l5-5 5 5 M4 20h16',
   download: 'M12 4v12 M7 11l5 5 5-5 M4 20h16',
+  bell: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0',
 };
 
 interface IconProps {

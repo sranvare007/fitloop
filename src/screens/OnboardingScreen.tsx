@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Pressable, ScrollView } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context';
 import { Btn, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
 import { Icon } from '../components/Icon';
-import { Profile, Routine, uid, ROUTINE_COLORS } from '../data';
+import { Profile, Routine, GymSchedule, uid, ROUTINE_COLORS } from '../data';
 
 function LoopMark({ size = 96, orange, lime, elev }: { size: number; orange: string; lime: string; elev: string }) {
   const r = size / 2 - 8, c = size / 2, C = 2 * Math.PI * r;
@@ -98,6 +98,107 @@ function RoutineBuilder({ t, onSave, onCancel }: { t: any; onSave: (r: Routine) 
   );
 }
 
+function TimeSpinner({ t, label, value, onChange }: {
+  t: any; label: string; value: number; onChange: (v: number) => void;
+}) {
+  return (
+    <View style={{ alignItems: 'center', gap: 6 }}>
+      <Pressable
+        onPress={() => onChange((value + 1) % (label === 'H' ? 24 : 60))}
+        style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center' }}
+        accessibilityLabel={`Increase ${label}`} accessibilityRole="button"
+      >
+        <Icon name="chevU" size={18} color={t.mut} sw={2.5} />
+      </Pressable>
+      <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: t.surface, borderWidth: 1.5, borderColor: t.line, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: 22, fontWeight: '800', color: t.text }}>
+          {String(value).padStart(2, '0')}
+        </Text>
+      </View>
+      <Pressable
+        onPress={() => onChange((value - 1 + (label === 'H' ? 24 : 60)) % (label === 'H' ? 24 : 60))}
+        style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center' }}
+        accessibilityLabel={`Decrease ${label}`} accessibilityRole="button"
+      >
+        <Icon name="chevD" size={18} color={t.mut} sw={2.5} />
+      </Pressable>
+      <Text style={{ fontSize: 11, fontWeight: '800', color: t.mut2, letterSpacing: 0.5 }}>{label}</Text>
+    </View>
+  );
+}
+
+function GymTimingStep({ t, schedule, onChange }: {
+  t: any;
+  schedule: GymSchedule;
+  onChange: (s: GymSchedule) => void;
+}) {
+  const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+  const update = (patch: Partial<GymSchedule>) => onChange({ ...schedule, ...patch });
+
+  const fmtTime = (h: number, m: number) =>
+    `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <Icon name="bell" size={22} color={t.orange} sw={2} />
+        <Text style={{ fontSize: 30, fontWeight: '800', color: t.text, letterSpacing: -0.6 }}>Gym schedule</Text>
+      </View>
+      <Text style={{ fontSize: 14.5, color: t.mut, fontWeight: '600', marginBottom: 26, lineHeight: 22 }}>
+        We'll remind you to log your workout during gym hours.
+      </Text>
+
+      <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut2, letterSpacing: 0.5, marginBottom: 12 }}>GYM DAYS</Text>
+      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 28 }}>
+        {DAY_ORDER.map((d) => {
+          const on = schedule.days.includes(d);
+          return (
+            <Pressable key={d}
+              onPress={() => {
+                const next = on ? schedule.days.filter(x => x !== d) : [...schedule.days, d];
+                update({ days: next });
+              }}
+              style={{ flex: 1, height: 46, borderRadius: 13, borderWidth: on ? 0 : 1.5, borderColor: t.line, backgroundColor: on ? t.orange : 'transparent', alignItems: 'center', justifyContent: 'center' }}
+              accessibilityLabel={`Toggle ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d]}`}
+              accessibilityRole="checkbox"
+            >
+              <Text style={{ fontWeight: '800', fontSize: 13.5, color: on ? t.orangeInk : t.mut }}>{DAY_LABELS[d]}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: 18 }}>
+        <View style={{ flex: 1, backgroundColor: t.surface, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: t.line2 }}>
+          <Text style={{ fontSize: 11, fontWeight: '800', color: t.mut2, letterSpacing: 0.5, marginBottom: 14, textAlign: 'center' }}>START</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <TimeSpinner t={t} label="H" value={schedule.startHour} onChange={v => update({ startHour: v })} />
+            <Text style={{ fontSize: 26, fontWeight: '800', color: t.mut2, marginBottom: 20 }}>:</Text>
+            <TimeSpinner t={t} label="M" value={schedule.startMin} onChange={v => update({ startMin: v })} />
+          </View>
+          <Text style={{ textAlign: 'center', fontSize: 13, fontWeight: '700', color: t.mut, marginTop: 10 }}>
+            {fmtTime(schedule.startHour, schedule.startMin)}
+          </Text>
+        </View>
+
+        <View style={{ flex: 1, backgroundColor: t.surface, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: t.line2 }}>
+          <Text style={{ fontSize: 11, fontWeight: '800', color: t.mut2, letterSpacing: 0.5, marginBottom: 14, textAlign: 'center' }}>END</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <TimeSpinner t={t} label="H" value={schedule.endHour} onChange={v => update({ endHour: v })} />
+            <Text style={{ fontSize: 26, fontWeight: '800', color: t.mut2, marginBottom: 20 }}>:</Text>
+            <TimeSpinner t={t} label="M" value={schedule.endMin} onChange={v => update({ endMin: v })} />
+          </View>
+          <Text style={{ textAlign: 'center', fontSize: 13, fontWeight: '700', color: t.mut, marginTop: 10 }}>
+            {fmtTime(schedule.endHour, schedule.endMin)}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export function OnboardingScreen() {
   const { t, fmt, setUnit, completeOnboarding } = useApp();
   const insets = useSafeAreaInsets();
@@ -109,6 +210,10 @@ export function OnboardingScreen() {
   const [weight, setWeight] = useState('');
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [building, setBuilding] = useState(false);
+  const [gymSchedule, setGymSchedule] = useState<GymSchedule>({
+    startHour: 7, startMin: 0, endHour: 9, endMin: 0, days: [1, 2, 3, 4, 5],
+  });
+  const [gymEnabled, setGymEnabled] = useState(false);
 
   const validProfile = name.trim().length >= 1 && +age >= 13 && +age <= 100 && gender && +height > 0 && +weight > 0;
 
@@ -117,12 +222,12 @@ export function OnboardingScreen() {
       name: name.trim() || 'Athlete', age: +age || 18, gender: gender || 'PREFER_NOT_TO_SAY',
       heightCm: +height || 170, weightKg: fmt.unit === 'kg' ? (+weight || 70) : (+weight || 154) / 2.20462,
     };
-    completeOnboarding(profile, routines);
+    completeOnboarding(profile, routines, gymEnabled ? gymSchedule : null);
   };
 
   const dots = (
     <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'center', paddingBottom: 12 }}>
-      {[0, 1, 2, 3].map(i => (
+      {[0, 1, 2, 3, 4].map(i => (
         <View key={i} style={{ width: i === step ? 22 : 7, height: 7, borderRadius: 99, backgroundColor: i === step ? t.orange : t.elev2 }} />
       ))}
     </View>
@@ -226,7 +331,21 @@ export function OnboardingScreen() {
     );
   }
 
-  // Step 3 — Ready
+  // Step 3 — Gym timing
+  if (step === 3) return shell(
+    <GymTimingStep t={t} schedule={gymSchedule} onChange={setGymSchedule} />,
+    <View style={{ gap: 10 }}>
+      <Btn t={t} full size="lg"
+        onPress={() => { setGymEnabled(true); setStep(4); }}
+        style={{ borderRadius: 16 }}
+        disabled={gymSchedule.days.length === 0}>
+        {gymSchedule.days.length ? 'Set reminder' : 'Select gym days first'}
+      </Btn>
+      <Btn t={t} variant="ghost" full onPress={() => { setGymEnabled(false); setStep(4); }} style={{ borderRadius: 16 }}>Skip for now</Btn>
+    </View>
+  );
+
+  // Step 4 — Ready
   return shell(
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
       <View style={{ width: 96, height: 96, borderRadius: 30, backgroundColor: t.lime, alignItems: 'center', justifyContent: 'center', shadowColor: t.lime, shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.4, shadowRadius: 40 }}>
