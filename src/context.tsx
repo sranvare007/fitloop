@@ -375,6 +375,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const file = new File(Paths.document, `${filename}.json`);
         file.write(json);
         await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Save FitLoop Backup' });
+        toast({ icon: 'check', msg: 'Backup exported' });
       } catch {
         toast({ icon: 'info', msg: 'Export failed', tone: 'danger' });
       }

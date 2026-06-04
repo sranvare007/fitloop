@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, StatusBar, Modal, Animated, StyleSheet, Image } from "react-native";
+import { View, StatusBar, Modal, Animated, StyleSheet } from "react-native";
 import LottieView from "lottie-react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
@@ -60,19 +60,18 @@ function AppShell() {
     }
   }, [fontsLoaded]);
 
-  // First launch: Lottie at 3× speed = 2s. Subsequent opens: image for 1.5s.
-  // Timer is more reliable than onAnimationFinish which fires immediately on some builds.
+  // First launch: Lottie at 3× speed = ~2s. Subsequent opens: dismiss immediately after fonts load.
   useEffect(() => {
     if (!fontsLoaded) return;
+    const delay = isFirstLaunch ? 2000 : 0;
     const timer = setTimeout(() => {
-      // Unlock modal first so it's visible before the overlay fades away.
       setSplashDone(true);
       Animated.timing(splashOpacity, {
         toValue: 0,
         duration: 350,
         useNativeDriver: true,
       }).start(() => setOverlayVisible(false));
-    }, isFirstLaunch ? 2000 : 1500);
+    }, delay);
     return () => clearTimeout(timer);
   }, [fontsLoaded]);
 
@@ -126,27 +125,19 @@ function AppShell() {
       {/* Toast notification */}
       <Toast toast={toastState} t={t} />
 
-      {/* Splash — Lottie on first-ever launch, static image on all subsequent opens */}
-      {overlayVisible && (
+      {/* Splash — Lottie animation on first-ever launch only */}
+      {overlayVisible && isFirstLaunch && (
         <Animated.View
           style={[styles.splash, { backgroundColor: t.bg, opacity: splashOpacity }]}
           pointerEvents="auto"
         >
-          {isFirstLaunch ? (
-            <LottieView
-              source={require("./assets/splash-animation.lottie")}
-              autoPlay
-              loop={false}
-              speed={3}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : (
-            <Image
-              source={require("./assets/splash-image.png")}
-              style={styles.splashImage}
-              resizeMode="contain"
-            />
-          )}
+          <LottieView
+            source={require("./assets/splash-animation.lottie")}
+            autoPlay
+            loop={false}
+            speed={3}
+            style={StyleSheet.absoluteFill}
+          />
         </Animated.View>
       )}
     </View>
@@ -160,10 +151,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  splashImage: {
-    width: '80%',
-    height: '80%',
-  },
+
 });
 
 export function App() {
