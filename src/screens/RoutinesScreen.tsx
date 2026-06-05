@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Pressable, ScrollView, Modal } from 'react-native';
+import { View, Pressable, ScrollView, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
@@ -264,7 +264,7 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
           native view hierarchy that sits outside the app-root GestureHandlerRootView,
           so RNGH gestures are silently ignored without this wrapper. */}
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1, backgroundColor: t.bg }}>
+        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={{ paddingTop: insets.top }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: t.line2 }}>
               <Pressable onPress={onClose}>
@@ -279,7 +279,7 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
           <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 20, paddingBottom: insets.bottom + 20 }}>
             {body}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </GestureHandlerRootView>
     </Modal>
   );
