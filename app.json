@@ -7,9 +7,7 @@
     "updates": {
       "url": "https://u.expo.dev/f5243a34-96e2-4b2d-ba9d-7e0f3e2829aa"
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

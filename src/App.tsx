@@ -3,6 +3,7 @@ import { View, StatusBar, Modal, Animated, StyleSheet } from "react-native";
 import LottieView from "lottie-react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
+import * as Updates from "expo-updates";
 import { useFonts } from "expo-font";
 import {
   HankenGrotesk_400Regular,
@@ -12,6 +13,7 @@ import {
   HankenGrotesk_800ExtraBold,
 } from "@expo-google-fonts/hanken-grotesk";
 import { AppProvider, useApp } from "./context";
+import { AppText } from "./components/Shared";
 import { TabNavigator } from "./navigation";
 import { SessionScreen } from "./screens/SessionScreen";
 import { RoutineEditor } from "./screens/RoutinesScreen";
@@ -20,6 +22,73 @@ import { Toast } from "./components/Shared";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 SplashScreen.preventAutoHideAsync();
+
+function AppUpdateOverlay() {
+  const { t } = useApp();
+  const { isDownloading, isUpdatePending, isUpdateAvailable, isRestarting, downloadProgress } = Updates.useUpdates();
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!Updates.isEnabled) return;
+    Updates.checkForUpdateAsync().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (isUpdateAvailable) {
+      Updates.fetchUpdateAsync().catch(() => {});
+    }
+  }, [isUpdateAvailable]);
+
+  useEffect(() => {
+    if (isUpdatePending) {
+      Updates.reloadAsync().catch(() => {});
+    }
+  }, [isUpdatePending]);
+
+  useEffect(() => {
+    const target = isUpdatePending ? 1 : (downloadProgress ?? 0);
+    Animated.timing(progressAnim, {
+      toValue: target,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [downloadProgress, isUpdatePending]);
+
+  if (!isDownloading && !isUpdatePending && !isRestarting) return null;
+
+  const pct = Math.round((isUpdatePending ? 1 : (downloadProgress ?? 0)) * 100);
+
+  return (
+    <View style={[StyleSheet.absoluteFillObject, styles.updateOverlay, { backgroundColor: t.bg }]}>
+      <LottieView
+        source={require('./assets/app-update-animation.lottie')}
+        autoPlay
+        loop
+        style={styles.updateLottie}
+      />
+      <AppText style={{ fontSize: 18, fontWeight: '800', color: t.text, marginBottom: 6 }}>
+        Update in progress
+      </AppText>
+      <AppText style={{ fontSize: 13, fontWeight: '600', color: t.mut, marginBottom: 24 }}>
+        Please keep the app open
+      </AppText>
+      <View style={[styles.progressTrack, { backgroundColor: t.elev }]}>
+        <Animated.View
+          style={[
+            styles.progressFill,
+            {
+              backgroundColor: t.orange,
+              width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+            },
+          ]}
+        />
+      </View>
+      <AppText style={{ fontSize: 13, fontWeight: '700', color: t.mut, marginTop: 10 }}>
+        {pct}%
+      </AppText>
+    </View>
+  );
+}
 
 function AppShell() {
   const {
@@ -125,6 +194,9 @@ function AppShell() {
       {/* Toast notification */}
       <Toast toast={toastState} t={t} />
 
+      {/* OTA update — shown while downloading and applying an update */}
+      <AppUpdateOverlay />
+
       {/* Splash — Lottie animation on first-ever launch only */}
       {overlayVisible && isFirstLaunch && (
         <Animated.View
@@ -151,7 +223,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
+  updateOverlay: {
+    zIndex: 1000,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  updateLottie: {
+    width: 220,
+    height: 220,
+  },
+  progressTrack: {
+    width: '60%',
+    height: 5,
+    borderRadius: 99,
+    marginTop: 32,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 99,
+  },
 });
 
 export function App() {
