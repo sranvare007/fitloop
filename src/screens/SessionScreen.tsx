@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Pressable, ScrollView, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Pressable, ScrollView, Modal, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context';
@@ -75,9 +75,9 @@ function SetRow({ i, set, t, fmt, onEdit, onDelete, prevBest }: any) {
   );
 }
 
-function SetEdit({ i, set, t, fmt, field, onField, onStep, prevBest }: any) {
+function SetEdit({ i, set, t, fmt, field, onField, onStep, prevBest, containerRef }: any) {
   return (
-    <View style={{ backgroundColor: t.bg === '#0C0D10' ? '#0E0F13' : t.surface2, borderRadius: 16, padding: 13, marginBottom: 8, borderWidth: 1, borderColor: t.line }}>
+    <View ref={containerRef} style={{ backgroundColor: t.bg === '#0C0D10' ? '#0E0F13' : t.surface2, borderRadius: 16, padding: 13, marginBottom: 8, borderWidth: 1, borderColor: t.line }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: prevBest ? 8 : 12 }}>
         <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.orange, letterSpacing: 0.3 }}>SET {i + 1}</Text>
         <Text style={{ fontSize: 12, color: t.mut2, fontWeight: '600' }}>tap a number to type</Text>
@@ -125,7 +125,7 @@ function SetEdit({ i, set, t, fmt, field, onField, onStep, prevBest }: any) {
   );
 }
 
-function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests }: any) {
+function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests, activeEditRef }: any) {
   const pbStr = ex.pb ? `${fmt.w(ex.pb[0])} ${fmt.wlabel} × ${ex.pb[1]}` : '—';
   const bests: { position: number; reps: number; kg: number }[] = setBests?.[ex.name] ?? [];
   return (
@@ -174,6 +174,7 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
             const prevBest = bests.find(b => b.position === i) ?? null;
             return editKey === key ? (
               <SetEdit key={i} i={i} set={s} t={t} fmt={fmt} field={field} prevBest={prevBest}
+                containerRef={activeEditRef}
                 onField={(f: string) => setField(field === f ? null : f)}
                 onStep={(f: string, d: number) => updateSet(idx, i, f, d, true)} />
             ) : (
@@ -226,6 +227,9 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
   const startRef = useRef(resumeData?.startedAt ?? Date.now());
   const [elapsed, setElapsed] = useState(() => Math.round((Date.now() - startRef.current) / 1000));
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollYRef = useRef(0);
+  const activeEditRef = useRef<View>(null);
 
   // Keypad slide animation
   const [keypadVisible, setKeypadVisible] = useState(false);
@@ -259,6 +263,26 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
     persistTimer.current = setTimeout(() => updateInProgressSession(exs), 400);
     return () => { if (persistTimer.current) clearTimeout(persistTimer.current); };
   }, [exs]);
+
+  // Scroll the active SetEdit above the keypad whenever a set is opened for editing
+  useEffect(() => {
+    if (!editKey || !field) return;
+    const timer = setTimeout(() => {
+      activeEditRef.current?.measure((_x, _y, _w, h, _px, pageY) => {
+        if (!h) return;
+        const screenH = Dimensions.get('window').height;
+        const keypadH = 340 + insets.bottom;
+        const visibleBottom = screenH - keypadH;
+        if (pageY + h > visibleBottom) {
+          scrollRef.current?.scrollTo({
+            y: scrollYRef.current + (pageY + h - visibleBottom) + 20,
+            animated: true,
+          });
+        }
+      });
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [editKey, field]);
 
   // Reload per-set bests whenever the exercise list changes (mount + swaps)
   useEffect(() => {
@@ -371,7 +395,9 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
       </View>
 
       {/* Exercise list */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: keypadVisible ? 320 : 130, gap: 12 }} showsVerticalScrollIndicator={false}
+      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: keypadVisible ? 320 : 130, gap: 12 }} showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={e => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
         onScrollBeginDrag={() => { if (field) dismissKeypad(); }}>
         {exs.map((ex: any, i: number) => (
           <ExerciseCard key={ex.id} ex={ex} idx={i} t={t} fmt={fmt}
@@ -379,7 +405,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
             editKey={editKey} setEditKey={setEditKey} field={field}
             setField={(f: string | null) => { if (f === null) dismissKeypad(); else { setField(f); setFresh(true); } }}
             updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
-            onMenu={() => setMenu(i)} setBests={setBests} />
+            onMenu={() => setMenu(i)} setBests={setBests} activeEditRef={activeEditRef} />
         ))}
         <Pressable onPress={() => setAddExOpen(true)} style={({ pressed }) => [{ padding: 15, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.line, backgroundColor: t.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.7 : 1 }]}>
           <Icon name="plus" size={18} color={t.orange} sw={2.6} />
