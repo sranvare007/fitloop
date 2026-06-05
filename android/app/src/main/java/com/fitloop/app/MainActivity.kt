@@ -1,4 +1,4 @@
-package com.fitloop
+package com.fitloop.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

@@ -14,14 +14,14 @@
     "scheme": "fitloop",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fitloop"
+      "bundleIdentifier": "com.fitloop.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "backgroundImage": "./assets/adaptive-icon-background.png"
       },
-      "package": "com.fitloop"
+      "package": "com.fitloop.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>fitloop</string>
-          <string>com.fitloop</string>
+          <string>com.fitloop.app</string>
         </array>
       </dict>
       <dict>
