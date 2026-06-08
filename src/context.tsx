@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
+import { useColorScheme } from 'react-native';
 import { makeTheme, Theme } from './theme';
 import {
   Profile, Routine, Session, Measurement, FmtHelper, Override, GymSchedule,
@@ -78,6 +79,7 @@ export interface AppContextValue {
   deleteSession: (id: string) => void;
   addMeasurement: (wDisp: number, bf: number | null) => void;
   setUnit: (u: 'kg' | 'lbs') => void;
+  themeName: string;
   setTheme: (name: string) => void;
   accent: string;
   pop: string;
@@ -192,7 +194,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   // ── Theme ─────────────────────────────────────────────────
-  const t = useMemo(() => makeTheme(themeName, accent, pop), [themeName, accent, pop]);
+  const systemScheme = useColorScheme();
+  const resolvedThemeName = themeName === 'system' ? (systemScheme ?? 'dark') : themeName;
+  const t = useMemo(() => makeTheme(resolvedThemeName, accent, pop), [resolvedThemeName, accent, pop]);
   const fmt = useMemo(() => makeFmt(unit), [unit]);
 
   // ── Toast ─────────────────────────────────────────────────
@@ -311,6 +315,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
 
     setUnit: (u) => { setUnitState(u); persistSetting({ unit: u }); },
+    themeName,
     setTheme: (n) => { setThemeName(n); persistSetting({ theme: n }); },
     accent, pop,
     setAccent: (c) => { setAccent(c); persistSetting({ accent: c }); },

@@ -4,7 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { useApp } from '../context';
-import { Btn, IconBtn, Chip, Sheet, MenuRow, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
+import { Btn, IconBtn, Chip, Sheet, MenuRow, ExerciseSearchList, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
+import { useExerciseSearch } from '../hooks';
 import { Icon, DotsMenu } from '../components/Icon';
 import { Routine, dayLabel, uid, ROUTINE_COLORS, DAYS } from '../data';
 
@@ -173,6 +174,7 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
   const [editingName, setEditingName] = useState('');
   const [outerScrollEnabled, setOuterScrollEnabled] = useState(true);
   const color = routine?.color || ROUTINE_COLORS[Math.floor(Math.random() * ROUTINE_COLORS.length)];
+  const { results: exResults, loading: exLoading } = useExerciseSearch(input);
   const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
   const addExercise = (nm?: string) => {
@@ -217,12 +219,15 @@ export function RoutineEditor({ routine, onSave, onDelete, onClose, embedded }: 
           onDragStart={() => setOuterScrollEnabled(false)}
           onDragEnd={() => setOuterScrollEnabled(true)}
         />
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TextInput value={input} onChangeText={setInput} onSubmitEditing={() => addExercise()} placeholder="Add an exercise…" placeholderTextColor={t.mut2} returnKeyType="done"
-            style={[inputStyle(t), { flex: 1 }]} />
-          <Pressable onPress={() => addExercise()} style={{ width: 50, borderRadius: 13, backgroundColor: input.trim() ? t.orange : t.elev, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="plus" size={22} color={input.trim() ? t.orangeInk : t.mut2} sw={2.6} />
-          </Pressable>
+        <View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput value={input} onChangeText={setInput} onSubmitEditing={() => addExercise()} placeholder="Add an exercise…" placeholderTextColor={t.mut2} returnKeyType="done"
+              style={[inputStyle(t), { flex: 1 }]} />
+            <Pressable onPress={() => addExercise()} style={{ width: 50, borderRadius: 13, backgroundColor: input.trim() ? t.orange : t.elev, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="plus" size={22} color={input.trim() ? t.orangeInk : t.mut2} sw={2.6} />
+            </Pressable>
+          </View>
+          <ExerciseSearchList results={exResults} loading={exLoading} query={input} onSelect={(n) => addExercise(n)} t={t} />
         </View>
       </View>
       {/* Days */}

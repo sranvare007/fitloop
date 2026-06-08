@@ -104,7 +104,7 @@ function ProfileForm({ t, fmt, profile, onSave }: { t: any; fmt: any; profile: P
 }
 
 export function SettingsScreen() {
-  const { t, fmt, state, setUnit, setTheme, accent, pop, setAccent, setPop, replayOnboarding, clearData, updateProfile, exportData, importData, toast } = useApp();
+  const { t, fmt, state, setUnit, themeName, setTheme, accent, pop, setAccent, setPop, replayOnboarding, clearData, updateProfile, exportData, importData, toast } = useApp();
   const [editProfile, setEditProfile] = useState(false);
   const [clearStep, setClearStep] = useState(0);
   const [importing, setImporting] = useState(false);
@@ -152,7 +152,7 @@ export function SettingsScreen() {
             </View>
             <Text style={{ flex: 1, fontSize: 15.5, fontWeight: '700', color: t.text }}>Appearance</Text>
           </View>
-          <Segmented t={t} options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]} value={t.name} onChange={setTheme} />
+          <Segmented t={t} options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }, { value: 'system', label: 'System' }]} value={themeName} onChange={setTheme} />
         </View>
       </Group>
 

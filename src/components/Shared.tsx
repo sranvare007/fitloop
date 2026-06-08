@@ -1,7 +1,8 @@
 import React from 'react';
 import {
   View, Text as RNText, TextInput as RNTextInput, Pressable, StyleSheet, Modal,
-  TouchableWithoutFeedback, ScrollView, ViewStyle,
+  TouchableWithoutFeedback, ScrollView, ViewStyle, ActivityIndicator,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Theme } from '../theme';
@@ -158,26 +159,31 @@ export function Sheet({ open, onClose, t, children, title, height }: SheetProps)
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={{
-              backgroundColor: t.surface,
-              borderTopLeftRadius: 28, borderTopRightRadius: 28,
-              paddingHorizontal: 18, paddingTop: 10,
-              paddingBottom: insets.bottom + 20,
-              maxHeight: typeof height === 'number' ? height : '85%',
-              borderTopWidth: 1, borderTopColor: t.line,
-            }}>
-              <View style={{ width: 40, height: 5, borderRadius: 99, backgroundColor: t.elev2, alignSelf: 'center', marginBottom: 14 }} />
-              {title && <AppText style={{ fontSize: 19, fontWeight: '800', color: t.text, marginBottom: 14, letterSpacing: -0.3 }}>{title}</AppText>}
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {children}
-              </ScrollView>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+      <KeyboardAvoidingView
+        style={{ flex: 1, justifyContent: 'flex-end' }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Pressable
+          style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' }}
+          onPress={onClose}
+        />
+        <TouchableWithoutFeedback onPress={() => {}}>
+          <View style={{
+            backgroundColor: t.surface,
+            borderTopLeftRadius: 28, borderTopRightRadius: 28,
+            paddingHorizontal: 18, paddingTop: 10,
+            paddingBottom: insets.bottom + 20,
+            maxHeight: typeof height === 'number' ? height : '85%',
+            borderTopWidth: 1, borderTopColor: t.line,
+          }}>
+            <View style={{ width: 40, height: 5, borderRadius: 99, backgroundColor: t.elev2, alignSelf: 'center', marginBottom: 14 }} />
+            {title && <AppText style={{ fontSize: 19, fontWeight: '800', color: t.text, marginBottom: 14, letterSpacing: -0.3 }}>{title}</AppText>}
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {children}
+            </ScrollView>
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -220,6 +226,66 @@ export function Stat({ t, label, value, sub }: { t: Theme; label: string; value:
       <AppText style={{ fontSize: 20, fontWeight: '800', color: t.text }}>
         {value}{sub ? <AppText style={{ fontSize: 11, color: t.mut, fontWeight: '600' }}> {sub}</AppText> : null}
       </AppText>
+    </View>
+  );
+}
+
+// ── ExerciseSearchList ───────────────────────────────────────
+type ExResult = { id: string; name: string; primaryMuscle: string; equipment: string };
+
+export function ExerciseSearchList({ results, loading, query, onSelect, t }: {
+  results: ExResult[];
+  loading: boolean;
+  query: string;
+  onSelect: (name: string) => void;
+  t: Theme;
+}) {
+  const q = query.trim();
+  if (!q) return null;
+
+  const exactMatch = results.some(r => r.name.toLowerCase() === q.toLowerCase());
+
+  return (
+    <View style={{ marginTop: 6, gap: 4 }}>
+      {loading && (
+        <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+          <ActivityIndicator size="small" color={t.mut} />
+        </View>
+      )}
+      {!loading && !exactMatch && (
+        <Pressable
+          onPress={() => onSelect(q)}
+          accessibilityRole="button"
+          accessibilityLabel={`Use ${q}`}
+          style={({ pressed }) => [{
+            flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12,
+            borderRadius: 13, borderWidth: 1.5, borderStyle: 'dashed',
+            borderColor: t.line, opacity: pressed ? 0.7 : 1,
+          }]}
+        >
+          <Icon name="plus" size={17} color={t.orange} sw={2.6} />
+          <AppText style={{ fontSize: 15, fontWeight: '800', color: t.text }}>Use "{q}"</AppText>
+        </Pressable>
+      )}
+      {results.map(ex => (
+        <Pressable
+          key={ex.id}
+          onPress={() => onSelect(ex.name)}
+          accessibilityRole="button"
+          accessibilityLabel={ex.name}
+          style={({ pressed }) => [{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            padding: 12, borderRadius: 13, backgroundColor: t.surface2,
+            opacity: pressed ? 0.7 : 1,
+          }]}
+        >
+          <View style={{ flex: 1 }}>
+            <AppText style={{ fontSize: 15.5, fontWeight: '700', color: t.text }}>{ex.name}</AppText>
+            <AppText style={{ fontSize: 12, fontWeight: '600', color: t.mut }}>{ex.primaryMuscle} · {ex.equipment}</AppText>
+          </View>
+          <Icon name="chevR" size={16} color={t.mut2} sw={2} />
+        </Pressable>
+      ))}
     </View>
   );
 }

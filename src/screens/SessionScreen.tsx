@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Pressable, ScrollView, Modal, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
+import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context';
-import { Btn, IconBtn, Chip, Sheet, MenuRow, Stat, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
+import { Btn, IconBtn, Chip, Sheet, MenuRow, Stat, ExerciseSearchList, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
+import { useExerciseSearch } from '../hooks';
 import { Icon, DotsMenu } from '../components/Icon';
-import { Routine, SEED_PB, KNOWN_EXERCISES, fmtClock, fmtDur, uid, sessionVolume, sessionSets } from '../data';
+import { Routine, SEED_PB, fmtClock, fmtDur, uid, sessionVolume, sessionSets } from '../data';
+
+const EX_GAP = 12;
+const GRIP_HIT = 44;
 
 function Key({ label, onPress, accent, big, t }: { label: string; onPress: () => void; accent?: boolean; big?: boolean; t: any }) {
   return (
@@ -196,8 +201,133 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
   );
 }
 
+function SortableSessionList({ exs, setExs, open, setOpen, t, fmt, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests, activeEditRef, onDragStart, onDragEnd }: any) {
+  const [draggingIdx, setDraggingIdx] = useState(-1);
+  const ghostY = useSharedValue(0);
+  const activeIdx = useSharedValue(-1);
+  const itemCount = useSharedValue(exs.length);
+  const itemCumTops = useSharedValue<number[]>([]);
+  const measuredHeights = useRef<number[]>([]);
+
+  useEffect(() => { itemCount.value = exs.length; }, [exs.length]);
+
+  const updateCumTops = () => {
+    const heights = measuredHeights.current;
+    const tops: number[] = [];
+    let y = 0;
+    for (let i = 0; i < heights.length; i++) {
+      tops.push(y);
+      if (i < heights.length - 1) y += (heights[i] || 82) + EX_GAP;
+    }
+    itemCumTops.value = tops;
+  };
+
+  const ghostStyle = useAnimatedStyle(() => ({
+    position: 'absolute' as const,
+    left: 0, right: 0,
+    top: ghostY.value,
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  }));
+
+  const beginDrag = (idx: number) => { setDraggingIdx(idx); setOpen(-1); onDragStart?.(); };
+  const endDrag = () => { setDraggingIdx(-1); onDragEnd?.(); };
+  const commitSwap = (from: number, to: number) => {
+    setExs((prev: any[]) => {
+      const arr = [...prev];
+      const [item] = arr.splice(from, 1);
+      arr.splice(to, 0, item);
+      return arr;
+    });
+  };
+
+  const gesture = Gesture.Pan()
+    .activateAfterLongPress(200)
+    .onStart((e) => {
+      'worklet';
+      if (e.x > GRIP_HIT) return;
+      const tops = itemCumTops.value;
+      let idx = tops.length - 1;
+      for (let i = 0; i < tops.length - 1; i++) {
+        if (e.y < tops[i + 1]) { idx = i; break; }
+      }
+      if (idx < 0 || idx >= itemCount.value) return;
+      activeIdx.value = idx;
+      ghostY.value = tops[idx] ?? 0;
+      runOnJS(beginDrag)(idx);
+    })
+    .onUpdate((e) => {
+      'worklet';
+      if (activeIdx.value < 0) return;
+      const tops = itemCumTops.value;
+      const count = itemCount.value;
+      const maxY = tops.length > 0 ? tops[tops.length - 1] : 0;
+      ghostY.value = Math.max(0, Math.min(e.y - 40, maxY));
+      let target = count - 1;
+      for (let i = 0; i < count - 1; i++) {
+        const mid = (tops[i] + tops[i + 1]) / 2;
+        if (e.y < mid) { target = i; break; }
+      }
+      if (target !== activeIdx.value) {
+        runOnJS(commitSwap)(activeIdx.value, target);
+        activeIdx.value = target;
+      }
+    })
+    .onEnd(() => {
+      'worklet';
+      if (activeIdx.value < 0) return;
+      const tops = itemCumTops.value;
+      ghostY.value = withSpring(tops[activeIdx.value] ?? 0, { damping: 20, stiffness: 300 });
+      activeIdx.value = -1;
+      runOnJS(endDrag)();
+    })
+    .onFinalize(() => {
+      'worklet';
+      if (activeIdx.value >= 0) { activeIdx.value = -1; runOnJS(endDrag)(); }
+    });
+
+  const draggingItem = draggingIdx >= 0 ? exs[draggingIdx] : null;
+
+  return (
+    <GestureDetector gesture={gesture}>
+      <View style={{ position: 'relative' }}>
+        {exs.map((ex: any, i: number) => (
+          <View
+            key={ex.id}
+            style={{ marginBottom: i < exs.length - 1 ? EX_GAP : 0, opacity: draggingIdx === i ? 0 : 1 }}
+            onLayout={e => { measuredHeights.current[i] = e.nativeEvent.layout.height; updateCumTops(); }}
+          >
+            <ExerciseCard
+              ex={ex} idx={i} t={t} fmt={fmt}
+              isOpen={open === i} onToggle={() => setOpen(open === i ? -1 : i)}
+              editKey={editKey} setEditKey={setEditKey} field={field} setField={setField}
+              updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
+              onMenu={() => onMenu(i)} setBests={setBests} activeEditRef={activeEditRef}
+            />
+          </View>
+        ))}
+        {draggingItem !== null && (
+          <Animated.View style={ghostStyle} pointerEvents="none">
+            <ExerciseCard
+              ex={draggingItem} idx={draggingIdx} t={t} fmt={fmt}
+              isOpen={false} onToggle={() => {}}
+              editKey={null} setEditKey={() => {}} field={null} setField={() => {}}
+              updateSet={() => {}} addSet={() => {}} deleteSet={() => {}}
+              onMenu={() => {}} setBests={setBests} activeEditRef={activeEditRef}
+            />
+          </Animated.View>
+        )}
+      </View>
+    </GestureDetector>
+  );
+}
+
 export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; exercises: any[] } | null }) {
-  const { t, fmt, toast, updateInProgressSession, loadSetBests } = useApp();
+  const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine } = useApp();
   const insets = useSafeAreaInsets();
   const seedPb = SEED_PB;
 
@@ -221,9 +351,13 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
   const [swapQuery, setSwapQuery] = useState('');
   const [addExOpen, setAddExOpen] = useState(false);
   const [newExName, setNewExName] = useState('');
+  const [addToRoutine, setAddToRoutine] = useState(true);
   const [finish, setFinish] = useState(false);
   const [stopConfirm, setStopConfirm] = useState(false);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
   const [notes, setNotes] = useState('');
+  const { results: addExResults, loading: addExLoading } = useExerciseSearch(newExName);
+  const { results: swapResults, loading: swapLoading } = useExerciseSearch(swapQuery);
   const startRef = useRef(resumeData?.startedAt ?? Date.now());
   const [elapsed, setElapsed] = useState(() => Math.round((Date.now() - startRef.current) / 1000));
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -356,11 +490,16 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
 
   const deleteEx = (ei: number) => { setExs(prev => prev.filter((_: any, j: number) => j !== ei)); setMenu(null); setOpen(0); setEditKey(null); };
 
-  const addEx = () => {
-    if (!newExName.trim()) return;
-    setExs(prev => [...prev, mkEx(newExName.trim(), false)]);
+  const doAddEx = (name: string) => {
+    const trimmed = name.trim(); if (!trimmed) return;
+    setExs(prev => [...prev, mkEx(trimmed, false)]);
     setOpen(exs.length); setAddExOpen(false); setNewExName('');
+    if (addToRoutine && routine) {
+      saveRoutine({ ...routine, exercises: [...routine.exercises, trimmed] });
+    }
   };
+
+  const addEx = () => doAddEx(newExName);
 
   const swapEx = (ei: number, name: string) => {
     const nm = name.trim(); if (!nm) return;
@@ -381,6 +520,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
   };
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       {/* Header */}
       <View style={{ paddingTop: insets.top }}>
@@ -395,18 +535,23 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
       </View>
 
       {/* Exercise list */}
-      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: keypadVisible ? 320 : 130, gap: 12 }} showsVerticalScrollIndicator={false}
+      <ScrollView ref={scrollRef} style={{ flex: 1 }} scrollEnabled={scrollEnabled} contentContainerStyle={{ padding: 14, paddingBottom: keypadVisible ? 320 : 130, gap: 12 }} showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={e => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
         onScrollBeginDrag={() => { if (field) dismissKeypad(); }}>
-        {exs.map((ex: any, i: number) => (
-          <ExerciseCard key={ex.id} ex={ex} idx={i} t={t} fmt={fmt}
-            isOpen={open === i} onToggle={() => setOpen(open === i ? -1 : i)}
-            editKey={editKey} setEditKey={setEditKey} field={field}
-            setField={(f: string | null) => { if (f === null) dismissKeypad(); else { setField(f); setFresh(true); } }}
-            updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
-            onMenu={() => setMenu(i)} setBests={setBests} activeEditRef={activeEditRef} />
-        ))}
+        <SortableSessionList
+          exs={exs} setExs={setExs}
+          open={open} setOpen={setOpen}
+          t={t} fmt={fmt}
+          editKey={editKey} setEditKey={setEditKey}
+          field={field}
+          setField={(f: string | null) => { if (f === null) dismissKeypad(); else { setField(f); setFresh(true); } }}
+          updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
+          onMenu={(i: number) => setMenu(i)}
+          setBests={setBests} activeEditRef={activeEditRef}
+          onDragStart={() => setScrollEnabled(false)}
+          onDragEnd={() => setScrollEnabled(true)}
+        />
         <Pressable onPress={() => setAddExOpen(true)} style={({ pressed }) => [{ padding: 15, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.line, backgroundColor: t.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.7 : 1 }]}>
           <Icon name="plus" size={18} color={t.orange} sw={2.6} />
           <Text style={{ fontSize: 15, fontWeight: '800', color: t.text }}>Add exercise</Text>
@@ -450,51 +595,61 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
       {/* Swap exercise */}
       <Sheet open={swap !== null} onClose={() => setSwap(null)} t={t} title={swap !== null ? `Swap "${exs[swap]?.name}"` : 'Swap exercise'}>
         <Text style={{ fontSize: 13, color: t.mut, fontWeight: '600', marginTop: -8, marginBottom: 14, lineHeight: 20 }}>Pick a substitute for this session only — your saved routine stays unchanged.</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: t.surface2, borderRadius: 13, borderWidth: 1.5, borderColor: t.line, paddingHorizontal: 13, marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: t.surface2, borderRadius: 13, borderWidth: 1.5, borderColor: t.line, paddingHorizontal: 13, marginBottom: 8 }}>
           <Icon name="search" size={17} color={t.mut} sw={2} />
           <TextInput autoFocus value={swapQuery} onChangeText={setSwapQuery} onSubmitEditing={() => swapEx(swap!, swapQuery)}
             placeholder="Search or type an exercise…" placeholderTextColor={t.mut2}
             style={{ flex: 1, color: t.text, fontSize: 15.5, fontWeight: '700', paddingVertical: 13 }} />
         </View>
-        {swapQuery.trim() && !KNOWN_EXERCISES.some(n => n.toLowerCase() === swapQuery.trim().toLowerCase()) && (
-          <Pressable onPress={() => swapEx(swap!, swapQuery)} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: 13, borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.line, marginBottom: 8 }}>
-            <Icon name="plus" size={18} color={t.orange} sw={2.6} />
-            <Text style={{ fontSize: 15, fontWeight: '800', color: t.text }}>Use "{swapQuery.trim()}"</Text>
-          </Pressable>
-        )}
-        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
-          {KNOWN_EXERCISES.filter(n => n.toLowerCase().includes(swapQuery.trim().toLowerCase())).map(n => {
-            const isCurrent = swap !== null && exs[swap]?.name === n;
-            return (
-              <Pressable key={n} onPress={() => !isCurrent && swapEx(swap!, n)} disabled={isCurrent}
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 13, borderRadius: 13, marginBottom: 4, backgroundColor: isCurrent ? t.limeSoft : t.surface2 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={{ fontSize: 15.5, fontWeight: '700', color: isCurrent ? t.limeInk : t.text }}>{n}</Text>
-                  {seedPb[n] && <View style={{ backgroundColor: t.limeSoft, paddingVertical: 2, paddingHorizontal: 7, borderRadius: 7 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: t.limeInk }}>PB {fmt.w(seedPb[n][0])}{fmt.wlabel}</Text>
-                  </View>}
-                </View>
-                {isCurrent ? <Text style={{ fontSize: 12, fontWeight: '800', color: t.limeInk }}>CURRENT</Text> : <Icon name="swap" size={17} color={t.mut2} sw={2} />}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <ExerciseSearchList
+          results={swapResults}
+          loading={swapLoading}
+          query={swapQuery}
+          onSelect={(n) => swapEx(swap!, n)}
+          t={t}
+        />
       </Sheet>
 
       {/* Add exercise */}
       <Sheet open={addExOpen} onClose={() => setAddExOpen(false)} t={t} title="Add exercise">
         <TextInput autoFocus value={newExName} onChangeText={setNewExName} onSubmitEditing={addEx}
           placeholder="e.g. Dumbbell Shrug" placeholderTextColor={t.mut2}
-          style={{ padding: 15, borderRadius: 14, borderWidth: 1.5, borderColor: t.line, backgroundColor: t.surface2, color: t.text, fontSize: 16, fontWeight: '600', marginBottom: 12 }} />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 16 }}>
-          {['Dips', 'Lateral Raise', 'Hammer Curl', 'Pull-up'].map(s => (
-            <Pressable key={s} onPress={() => setNewExName(s)} style={{ borderWidth: 1, borderColor: t.line, backgroundColor: t.surface2, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: t.mut }}>{s}</Text>
-            </Pressable>
-          ))}
+          style={{ padding: 15, borderRadius: 14, borderWidth: 1.5, borderColor: t.line, backgroundColor: t.surface2, color: t.text, fontSize: 16, fontWeight: '600', marginBottom: 8 }} />
+        <ExerciseSearchList
+          results={addExResults}
+          loading={addExLoading}
+          query={newExName}
+          onSelect={(n) => doAddEx(n)}
+          t={t}
+        />
+        {!newExName.trim() && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12, marginBottom: 16 }}>
+            {['Dips', 'Lateral Raise', 'Hammer Curl', 'Pull-up'].map(s => (
+              <Pressable key={s} onPress={() => setNewExName(s)} style={{ borderWidth: 1, borderColor: t.line, backgroundColor: t.surface2, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: t.mut }}>{s}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        {routine && (
+          <Pressable
+            onPress={() => setAddToRoutine(v => !v)}
+            accessibilityRole="checkbox"
+            accessibilityLabel="Also add to routine"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 14, marginBottom: 4 }}
+          >
+            <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: addToRoutine ? t.lime : t.line, backgroundColor: addToRoutine ? t.lime : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+              {addToRoutine && <Icon name="check" size={13} color={t.onLime} sw={2.6} />}
+            </View>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: t.text }}>Also add to <Text style={{ color: t.orange }}>{routine.name}</Text></Text>
+          </Pressable>
+        )}
+        <View style={{ marginTop: 14 }}>
+          <Btn t={t} full size="lg" onPress={addEx}>Add to session</Btn>
         </View>
-        <Btn t={t} full size="lg" onPress={addEx}>Add to session</Btn>
-        <Text style={{ fontSize: 12, color: t.mut2, textAlign: 'center', marginTop: 12 }}>Added to this session only, not the saved routine</Text>
+        {!routine && (
+          <Text style={{ fontSize: 12, color: t.mut2, textAlign: 'center', marginTop: 12 }}>Added to this session only, not the saved routine</Text>
+        )}
       </Sheet>
 
       {/* Stop confirmation */}
@@ -522,5 +677,6 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
         <Btn t={t} variant="ghost" full onPress={() => setFinish(false)}>Keep going</Btn>
       </Sheet>
     </View>
+    </GestureHandlerRootView>
   );
 }
