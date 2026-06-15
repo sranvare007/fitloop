@@ -201,7 +201,7 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
   );
 }
 
-function SortableSessionList({ exs, setExs, open, setOpen, t, fmt, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests, activeEditRef, onDragStart, onDragEnd }: any) {
+function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests, activeEditRef, onDragStart, onDragEnd }: any) {
   const [draggingIdx, setDraggingIdx] = useState(-1);
   const ghostY = useSharedValue(0);
   const activeIdx = useSharedValue(-1);
@@ -234,7 +234,7 @@ function SortableSessionList({ exs, setExs, open, setOpen, t, fmt, editKey, setE
     elevation: 8,
   }));
 
-  const beginDrag = (idx: number) => { setDraggingIdx(idx); setOpen(-1); onDragStart?.(); };
+  const beginDrag = (idx: number) => { setDraggingIdx(idx); onDragStart?.(); };
   const endDrag = () => { setDraggingIdx(-1); onDragEnd?.(); };
   const commitSwap = (from: number, to: number) => {
     setExs((prev: any[]) => {
@@ -303,7 +303,7 @@ function SortableSessionList({ exs, setExs, open, setOpen, t, fmt, editKey, setE
           >
             <ExerciseCard
               ex={ex} idx={i} t={t} fmt={fmt}
-              isOpen={open === i} onToggle={() => setOpen(open === i ? -1 : i)}
+              isOpen={openIds.has(ex.id)} onToggle={() => toggleOpen(ex.id)}
               editKey={editKey} setEditKey={setEditKey} field={field} setField={setField}
               updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
               onMenu={() => onMenu(i)} setBests={setBests} activeEditRef={activeEditRef}
@@ -342,7 +342,16 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
       : (routine?.exercises || ['Bench Press']).map((n, i) => mkEx(n, i === 0))
   );
   const [setBests, setSetBests] = useState<Record<string, { position: number; reps: number; kg: number }[]>>({});
-  const [open, setOpen] = useState<number>(0);
+  const [openIds, setOpenIds] = useState<Set<string>>(() => {
+    const first = (resumeData?.exercises?.length ? resumeData.exercises : exs)[0]?.id;
+    return new Set<string>(first ? [first] : []);
+  });
+  const toggleOpen = (id: string) => setOpenIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const openEx = (id: string) => setOpenIds(prev => prev.has(id) ? prev : new Set(prev).add(id));
   const [editKey, setEditKey] = useState<string | null>(null);
   const [field, setField] = useState<string | null>(null);
   const [fresh, setFresh] = useState(true);
@@ -470,7 +479,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
       return { ...e, sets: [...e.sets, { reps: last.reps, w: last.w }] };
     }));
     const newIdx = exs[ei].sets.length;
-    setOpen(ei); setEditKey(ei + ':' + newIdx); setField('kg'); setFresh(true);
+    openEx(exs[ei].id); setEditKey(ei + ':' + newIdx); setField('kg'); setFresh(true);
   };
 
   const deleteSet = (ei: number, si: number) => {
@@ -485,15 +494,21 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
 
   const moveEx = (ei: number, dir: number) => {
     setExs(prev => { const a = [...prev]; const ni = ei + dir; if (ni < 0 || ni >= a.length) return a; [a[ei], a[ni]] = [a[ni], a[ei]]; return a; });
-    setMenu(null); setOpen(ei + dir);
+    setMenu(null);
   };
 
-  const deleteEx = (ei: number) => { setExs(prev => prev.filter((_: any, j: number) => j !== ei)); setMenu(null); setOpen(0); setEditKey(null); };
+  const deleteEx = (ei: number) => {
+    const removedId = exs[ei]?.id;
+    setExs(prev => prev.filter((_: any, j: number) => j !== ei));
+    if (removedId) setOpenIds(prev => { const next = new Set(prev); next.delete(removedId); return next; });
+    setMenu(null); setEditKey(null);
+  };
 
   const doAddEx = (name: string) => {
     const trimmed = name.trim(); if (!trimmed) return;
-    setExs(prev => [...prev, mkEx(trimmed, false)]);
-    setOpen(exs.length); setAddExOpen(false); setNewExName('');
+    const newEx = mkEx(trimmed, false);
+    setExs(prev => [...prev, newEx]);
+    openEx(newEx.id); setAddExOpen(false); setNewExName('');
     if (addToRoutine && routine) {
       saveRoutine({ ...routine, exercises: [...routine.exercises, trimmed] });
     }
@@ -504,7 +519,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
   const swapEx = (ei: number, name: string) => {
     const nm = name.trim(); if (!nm) return;
     setExs(prev => prev.map((e: any, j: number) => j !== ei ? e : { ...e, name: nm, pb: seedPb[nm], swapped: true }));
-    setSwap(null); setSwapQuery(''); setOpen(ei);
+    setSwap(null); setSwapQuery(''); openEx(exs[ei].id);
     toast({ icon: 'swap', msg: `Swapped to ${nm}` });
   };
 
@@ -541,7 +556,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
         onScrollBeginDrag={() => { if (field) dismissKeypad(); }}>
         <SortableSessionList
           exs={exs} setExs={setExs}
-          open={open} setOpen={setOpen}
+          openIds={openIds} toggleOpen={toggleOpen}
           t={t} fmt={fmt}
           editKey={editKey} setEditKey={setEditKey}
           field={field}
