@@ -245,7 +245,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSessionRoutine(routine);
       setSessionResumeData(null);
       setSessionOn(true);
-      const ips: InProgressSession = { startedAt: now, routineId: routine?.id || null, routineName: routine?.name || 'Free Workout', exercises: [] };
+      const ips: InProgressSession = { startedAt: now, lastActiveAt: now, routineId: routine?.id || null, routineName: routine?.name || 'Free Workout', exercises: [] };
       setInProgressSession(ips);
       saveInProgressSessionDb(ips).catch(() => {});
     },
@@ -260,6 +260,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateInProgressSession: (exercises: any[]) => {
       const data: InProgressSession = {
         startedAt: sessionStartedAtRef.current,
+        lastActiveAt: Date.now(),
         routineId: sessionRoutine?.id || null,
         routineName: sessionRoutine?.name || 'Free Workout',
         exercises,

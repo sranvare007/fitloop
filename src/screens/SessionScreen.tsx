@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Pressable, ScrollView, Modal, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
+import { View, Pressable, ScrollView, Modal, KeyboardAvoidingView, Platform, Dimensions, AppState } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,9 @@ import { Btn, IconBtn, Chip, Sheet, MenuRow, Stat, ExerciseSearchList, AppText a
 import { useExerciseSearch } from '../hooks';
 import { Icon, DotsMenu } from '../components/Icon';
 import { Routine, SEED_PB, fmtClock, fmtDur, uid, sessionVolume, sessionSets } from '../data';
+import { Theme } from '../theme';
+
+const ABANDON_GAP_MS = 20 * 60 * 1000;
 
 const EX_GAP = 12;
 const GRIP_HIT = 44;
@@ -326,7 +329,17 @@ function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey
   );
 }
 
-export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; exercises: any[] } | null }) {
+function StepRow({ label, t, onMinus, onPlus }: { label: string; t: Theme; onMinus: () => void; onPlus: () => void }) {
+  return (
+    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: t.elev, borderRadius: 12, paddingHorizontal: 6, paddingVertical: 6 }}>
+      <IconBtn name="minus" t={t} size={44} bg={t.surface2} onPress={onMinus} />
+      <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.mut, letterSpacing: 0.3 }}>{label}</Text>
+      <IconBtn name="plus" t={t} size={44} bg={t.surface2} onPress={onPlus} />
+    </View>
+  );
+}
+
+export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; lastActiveAt?: number; exercises: any[] } | null }) {
   const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine } = useApp();
   const insets = useSafeAreaInsets();
   const seedPb = SEED_PB;
@@ -362,6 +375,9 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
   const [newExName, setNewExName] = useState('');
   const [addToRoutine, setAddToRoutine] = useState(true);
   const [finish, setFinish] = useState(false);
+  const [gapDetected, setGapDetected] = useState(false);
+  const [earlyFinish, setEarlyFinish] = useState(false);
+  const [finishAtMs, setFinishAtMs] = useState(0);
   const [stopConfirm, setStopConfirm] = useState(false);
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [notes, setNotes] = useState('');
@@ -369,6 +385,10 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
   const { results: swapResults, loading: swapLoading } = useExerciseSearch(swapQuery);
   const startRef = useRef(resumeData?.startedAt ?? Date.now());
   const [elapsed, setElapsed] = useState(() => Math.round((Date.now() - startRef.current) / 1000));
+  const lastSetLoggedAtRef = useRef(resumeData?.lastActiveAt ?? resumeData?.startedAt ?? Date.now());
+  const sawLongGapRef = useRef(false);
+  const bgAtRef = useRef<number | null>(null);
+  const persistMountedRef = useRef(false);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
@@ -402,10 +422,28 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
   }, []);
 
   useEffect(() => {
+    if (persistMountedRef.current) lastSetLoggedAtRef.current = Date.now();
+    else persistMountedRef.current = true;
     if (persistTimer.current) clearTimeout(persistTimer.current);
     persistTimer.current = setTimeout(() => updateInProgressSession(exs), 400);
     return () => { if (persistTimer.current) clearTimeout(persistTimer.current); };
   }, [exs]);
+
+  // Detect an abandoned session: a long gap since the last logged set on resume,
+  // or the app being backgrounded for a long stretch mid-session.
+  useEffect(() => {
+    const la = resumeData?.lastActiveAt ?? resumeData?.startedAt;
+    if (la && Date.now() - la > ABANDON_GAP_MS) sawLongGapRef.current = true;
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') {
+        if (bgAtRef.current && Date.now() - bgAtRef.current > ABANDON_GAP_MS) sawLongGapRef.current = true;
+        bgAtRef.current = null;
+      } else if (bgAtRef.current == null) {
+        bgAtRef.current = Date.now();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // Scroll the active SetEdit above the keypad whenever a set is opened for editing
   useEffect(() => {
@@ -526,12 +564,37 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
   const totalVol = Math.round(exs.reduce((a: number, e: any) => a + e.sets.reduce((s: number, x: any) => s + x.reps * x.w, 0), 0));
   const totalSets = exs.reduce((a: number, e: any) => a + e.sets.length, 0);
 
+  const clampFinish = (ms: number) => Math.min(Date.now(), Math.max(startRef.current, ms));
+  const adjustFinish = (deltaMs: number) => setFinishAtMs(prev => clampFinish(prev + deltaMs));
+
+  const fmtFinishLabel = (ms: number) => {
+    const d = new Date(ms);
+    const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const sameDay = new Date(startRef.current).toDateString() === d.toDateString();
+    return sameDay ? time : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+  };
+
+  const useAdjustedFinish = gapDetected && earlyFinish;
+  const finishDurationSec = useAdjustedFinish
+    ? Math.max(0, Math.round((finishAtMs - startRef.current) / 1000))
+    : elapsed;
+
+  const openFinish = () => {
+    const idle = Date.now() - lastSetLoggedAtRef.current > ABANDON_GAP_MS;
+    const gap = idle || sawLongGapRef.current;
+    setGapDetected(gap);
+    setEarlyFinish(gap);
+    if (gap) setFinishAtMs(clampFinish(lastSetLoggedAtRef.current));
+    setFinish(true);
+  };
+
   const doSave = () => {
     const exsKg = exs.filter((e: any) => e.sets.length).map((e: any) => ({
       id: e.id, name: e.name,
       sets: e.sets.map((s: any) => ({ reps: s.reps, kg: fmt.unit === 'kg' ? s.w : +(s.w / 2.20462).toFixed(1) }))
     }));
-    onSave({ id: uid(), routineId: routine?.id || null, routineName: routine?.name || 'Free Workout', startedAt: startRef.current, endedAt: Date.now(), durationSec: elapsed, exercises: exsKg, notes });
+    const endedAt = useAdjustedFinish ? finishAtMs : Date.now();
+    onSave({ id: uid(), routineId: routine?.id || null, routineName: routine?.name || 'Free Workout', startedAt: startRef.current, endedAt, durationSec: finishDurationSec, exercises: exsKg, notes });
   };
 
   return (
@@ -545,7 +608,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
             <Text style={{ fontSize: 16, fontWeight: '800', color: t.text, letterSpacing: 0.1 }}>{routine?.name || 'Free Workout'}</Text>
             <Text style={{ fontSize: 12.5, color: t.limeInk, fontWeight: '700', marginTop: 1 }}>{fmtClock(elapsed)}</Text>
           </View>
-          <Btn t={t} size="sm" onPress={() => setFinish(true)} style={{ borderRadius: 12 }}>Finish</Btn>
+          <Btn t={t} size="sm" onPress={openFinish} style={{ borderRadius: 12 }}>Finish</Btn>
         </View>
       </View>
 
@@ -679,8 +742,39 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
 
       {/* Finish summary */}
       <Sheet open={finish} onClose={() => setFinish(false)} t={t} title="Finish workout">
+        {gapDetected && (
+          <View style={{ backgroundColor: t.elev, borderRadius: 16, borderWidth: 1, borderColor: t.line2, padding: 14, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+              <Icon name="clock" size={16} color={t.orange} sw={2} />
+              <Text style={{ fontSize: 14.5, fontWeight: '800', color: t.text }}>Were you away?</Text>
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: '500', color: t.mut, lineHeight: 18 }}>
+              This session sat open for a while. Did you actually finish earlier than now?
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel="I finished earlier" onPress={() => { setEarlyFinish(true); setFinishAtMs(clampFinish(lastSetLoggedAtRef.current)); }}
+                style={{ flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: earlyFinish ? t.orange : t.surface2, borderWidth: 1, borderColor: earlyFinish ? t.orange : t.line }}>
+                <Text style={{ fontSize: 13.5, fontWeight: '800', color: earlyFinish ? t.orangeInk : t.text }}>Finished earlier</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="I just finished now" onPress={() => setEarlyFinish(false)}
+                style={{ flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: !earlyFinish ? t.orange : t.surface2, borderWidth: 1, borderColor: !earlyFinish ? t.orange : t.line }}>
+                <Text style={{ fontSize: 13.5, fontWeight: '800', color: !earlyFinish ? t.orangeInk : t.text }}>Just now</Text>
+              </Pressable>
+            </View>
+            {earlyFinish && (
+              <View style={{ marginTop: 14, backgroundColor: t.surface2, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: t.line }}>
+                <Text style={{ fontSize: 11.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.4, textAlign: 'center', marginBottom: 8 }}>FINISHED AT</Text>
+                <Text style={{ fontSize: 28, fontWeight: '800', color: t.text, letterSpacing: -0.5, textAlign: 'center', marginBottom: 12 }}>{fmtFinishLabel(finishAtMs)}</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <StepRow label="HOUR" t={t} onMinus={() => adjustFinish(-3600000)} onPlus={() => adjustFinish(3600000)} />
+                  <StepRow label="MIN" t={t} onMinus={() => adjustFinish(-60000)} onPlus={() => adjustFinish(60000)} />
+                </View>
+              </View>
+            )}
+          </View>
+        )}
         <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-          <View style={{ flex: 1 }}><Stat t={t} label="DURATION" value={fmtDur(elapsed)} /></View>
+          <View style={{ flex: 1 }}><Stat t={t} label="DURATION" value={fmtDur(finishDurationSec)} /></View>
           <View style={{ flex: 1 }}><Stat t={t} label="SETS" value={totalSets} /></View>
           <View style={{ flex: 1 }}><Stat t={t} label="VOLUME" value={totalVol.toLocaleString()} sub={fmt.wlabel} /></View>
         </View>

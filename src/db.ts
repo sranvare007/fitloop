@@ -344,6 +344,7 @@ const IPS_KEY = 'in_progress_session';
 
 export interface InProgressSession {
   startedAt: number;
+  lastActiveAt: number;
   routineId: string | null;
   routineName: string;
   exercises: any[];
