@@ -4,7 +4,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, run
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context';
-import { Btn, IconBtn, Chip, Sheet, MenuRow, Stat, ExerciseSearchList, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
+import { Btn, IconBtn, Chip, Sheet, MenuRow, Stat, Switch, ExerciseSearchList, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
 import { useExerciseSearch } from '../hooks';
 import { Icon, DotsMenu } from '../components/Icon';
 import { Routine, SEED_PB, fmtClock, fmtDur, uid, sessionVolume, sessionSets } from '../data';
@@ -340,7 +340,7 @@ function StepRow({ label, t, onMinus, onPlus }: { label: string; t: Theme; onMin
 }
 
 export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; lastActiveAt?: number; exercises: any[] } | null }) {
-  const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine } = useApp();
+  const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine, openPhysiqueCamera } = useApp();
   const insets = useSafeAreaInsets();
   const seedPb = SEED_PB;
 
@@ -381,6 +381,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
   const [stopConfirm, setStopConfirm] = useState(false);
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [notes, setNotes] = useState('');
+  const [addPhoto, setAddPhoto] = useState(false);
   const { results: addExResults, loading: addExLoading } = useExerciseSearch(newExName);
   const { results: swapResults, loading: swapLoading } = useExerciseSearch(swapQuery);
   const startRef = useRef(resumeData?.startedAt ?? Date.now());
@@ -595,6 +596,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
     }));
     const endedAt = useAdjustedFinish ? finishAtMs : Date.now();
     onSave({ id: uid(), routineId: routine?.id || null, routineName: routine?.name || 'Free Workout', startedAt: startRef.current, endedAt, durationSec: finishDurationSec, exercises: exsKg, notes });
+    if (addPhoto) openPhysiqueCamera();
   };
 
   return (
@@ -781,6 +783,16 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
         <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.4, marginBottom: 7 }}>SESSION NOTES</Text>
         <TextInput value={notes} onChangeText={v => setNotes(v.slice(0, 300))} placeholder="How did it feel? (optional)" placeholderTextColor={t.mut2} multiline
           style={{ minHeight: 70, padding: 13, borderRadius: 14, borderWidth: 1.5, borderColor: t.line, backgroundColor: t.surface2, color: t.text, fontSize: 15, fontWeight: '500', marginBottom: 16, textAlignVertical: 'top' }} />
+        <Pressable accessibilityRole="switch" accessibilityState={{ checked: addPhoto }} accessibilityLabel="Add a progress photo after saving"
+          onPress={() => setAddPhoto(v => !v)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.line2, marginBottom: 16 }}>
+          <Icon name="camera" size={20} color={t.orange} sw={2} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: t.text }}>Add progress photo</Text>
+            <Text style={{ fontSize: 12.5, fontWeight: '600', color: t.mut }}>Capture your physique after saving</Text>
+          </View>
+          <Switch on={addPhoto} onChange={setAddPhoto} t={t} />
+        </Pressable>
         <Btn t={t} variant="pop" full size="lg" onPress={doSave} icon="check">Save session</Btn>
         <View style={{ height: 10 }} />
         <Btn t={t} variant="ghost" full onPress={() => setFinish(false)}>Keep going</Btn>

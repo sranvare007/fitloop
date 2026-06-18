@@ -4,6 +4,7 @@ import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText, R
 import { useApp } from '../context';
 import { Segmented, Switch, Sheet, AppText as Text } from '../components/Shared';
 import { Icon } from '../components/Icon';
+import { PhysiqueTimeline } from '../components/PhysiqueTimeline';
 import { DAY_MS } from '../data';
 
 const W = Dimensions.get('window').width - 36;
@@ -133,9 +134,11 @@ export function ProgressScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: 18, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
       <Text style={{ fontSize: 30, fontWeight: '800', color: t.text, letterSpacing: -0.6, marginBottom: 16 }}>Progress</Text>
-      <Segmented t={t} options={[{ value: 'strength', label: 'Strength' }, { value: 'body', label: 'Body' }]} value={tab} onChange={v => { setTab(v); setActive(null); }} style={{ marginBottom: 18 }} />
+      <Segmented t={t} options={[{ value: 'strength', label: 'Strength' }, { value: 'body', label: 'Body' }, { value: 'physique', label: 'Physique' }]} value={tab} onChange={v => { setTab(v); setActive(null); }} style={{ marginBottom: 18 }} />
 
-      {tab === 'strength' ? (
+      {tab === 'physique' ? (
+        <PhysiqueTimeline />
+      ) : tab === 'strength' ? (
         <>
           <Pressable onPress={() => setPick(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line2, borderRadius: 16, padding: 14, marginBottom: 14 }}>
             <Icon name="search" size={18} color={t.mut} sw={2} />

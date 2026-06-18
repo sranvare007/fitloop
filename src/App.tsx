@@ -18,6 +18,7 @@ import { TabNavigator } from "./navigation";
 import { SessionScreen } from "./screens/SessionScreen";
 import { RoutineEditor } from "./screens/RoutinesScreen";
 import { OnboardingScreen } from "./screens/OnboardingScreen";
+import { PhysiqueCameraScreen } from "./screens/PhysiqueCameraScreen";
 import { Toast } from "./components/Shared";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -104,6 +105,8 @@ function AppShell() {
     closeRoutineEdit,
     onboarded,
     toastState,
+    physiqueCameraOn,
+    closePhysiqueCamera,
   } = useApp();
 
   const [fontsLoaded] = useFonts({
@@ -170,6 +173,16 @@ function AppShell() {
           onSave={saveSession}
           resumeData={sessionResumeData}
         />
+      </Modal>
+
+      {/* Physique progress camera — full-screen capture flow */}
+      <Modal
+        visible={physiqueCameraOn}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={closePhysiqueCamera}
+      >
+        <PhysiqueCameraScreen />
       </Modal>
 
       {/* Routine editor — slides up when editing/creating a routine */}

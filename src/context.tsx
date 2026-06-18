@@ -3,8 +3,10 @@ import { useColorScheme } from 'react-native';
 import { makeTheme, Theme } from './theme';
 import {
   Profile, Routine, Session, Measurement, FmtHelper, Override, GymSchedule,
+  PhysiquePhoto, PhysiquePose,
   makeFmt, sessionVolume, uid, LB, DAY_MS,
 } from './data';
+import { persistPhoto, photoUri, deletePhotoFile } from './photos';
 import { scheduleGymNotifications, cancelGymNotifications } from './notifications';
 import {
   initDb,
@@ -14,6 +16,7 @@ import {
   loadRecentSessions, loadSessionPage, totalSessionCount,
   recentSessionCount, recentSessionDays,
   addMeasurementDb, loadMeasurements,
+  loadPhysiquePhotos, addPhysiquePhotoDb, deletePhysiquePhotoDb,
   loadStrengthSeries, loadAllExerciseNames,
   exportAllData, importAllData, FitLoopExport,
   saveInProgressSessionDb, loadInProgressSessionDb, clearInProgressSessionDb, InProgressSession,
@@ -55,6 +58,8 @@ export interface AppContextValue {
   doneDays: Set<number>;
   /** Last measurement (if any) */
   lastMeasurement: Measurement | null;
+  /** All physique progress photos, newest-first. */
+  physiquePhotos: PhysiquePhoto[];
 
   // Async data loaders for screens that need more
   loadMoreSessions: (limit: number, offset: number) => Promise<Session[]>;
@@ -78,6 +83,11 @@ export interface AppContextValue {
   openDetail: (s: Session | null) => void;
   deleteSession: (id: string) => void;
   addMeasurement: (wDisp: number, bf: number | null) => void;
+  addPhysiquePhotos: (shots: { uri: string; pose: PhysiquePose; weightKg?: number | null }[], note?: string) => Promise<void>;
+  deletePhysiquePhoto: (id: string) => Promise<void>;
+  physiqueCameraOn: boolean;
+  openPhysiqueCamera: () => void;
+  closePhysiqueCamera: () => void;
   setUnit: (u: 'kg' | 'lbs') => void;
   themeName: string;
   setTheme: (name: string) => void;
@@ -132,9 +142,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [weekCount, setWeekCount] = useState(0);
   const [doneDays, setDoneDays] = useState<Set<number>>(new Set());
   const [lastMeasurement, setLastMeasurement] = useState<Measurement | null>(null);
+  const [physiquePhotos, setPhysiquePhotos] = useState<PhysiquePhoto[]>([]);
 
   // UI / overlay state
   const [activeTab, setActiveTab] = useState('home');
+  const [physiqueCameraOn, setPhysiqueCameraOn] = useState(false);
   const [sessionOn, setSessionOn] = useState(false);
   const [sessionRoutine, setSessionRoutine] = useState<Routine | null>(null);
   const [inProgressSession, setInProgressSession] = useState<InProgressSession | null>(null);
@@ -191,6 +203,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const measurements = await loadMeasurements(0);
     setLastMeasurement(measurements.length ? measurements[measurements.length - 1] : null);
+
+    setPhysiquePhotos(await loadPhysiquePhotos(0));
   }
 
   // ── Theme ─────────────────────────────────────────────────
@@ -217,6 +231,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     weekCount,
     doneDays,
     lastMeasurement,
+    physiquePhotos,
 
     // Async data loaders
     loadMoreSessions: (limit, offset) => loadSessionPage(limit, offset),
@@ -315,6 +330,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast({ icon: 'check', msg: 'Measurement logged' });
     },
 
+    addPhysiquePhotos: async (shots, note = '') => {
+      if (!shots.length) return;
+      const at = Date.now();
+      for (const s of shots) {
+        const id = uid();
+        const file = persistPhoto(s.uri, id);
+        await addPhysiquePhotoDb({ id, at, file, uri: photoUri(file), pose: s.pose, note, weightKg: s.weightKg ?? null });
+      }
+      setPhysiquePhotos(await loadPhysiquePhotos(0));
+      setPhysiqueCameraOn(false);
+      toast({ icon: 'check', msg: shots.length > 1 ? `${shots.length} photos saved` : 'Photo saved' });
+    },
+    deletePhysiquePhoto: async (id) => {
+      const photo = physiquePhotos.find(p => p.id === id);
+      await deletePhysiquePhotoDb(id);
+      if (photo) deletePhotoFile(photo.file);
+      setPhysiquePhotos(ps => ps.filter(p => p.id !== id));
+      toast({ icon: 'trash', tone: 'danger', msg: 'Photo deleted' });
+    },
+    physiqueCameraOn,
+    openPhysiqueCamera: () => setPhysiqueCameraOn(true),
+    closePhysiqueCamera: () => setPhysiqueCameraOn(false),
+
     setUnit: (u) => { setUnitState(u); persistSetting({ unit: u }); },
     themeName,
     setTheme: (n) => { setThemeName(n); persistSetting({ theme: n }); },
@@ -370,9 +408,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await database.runAsync('DELETE FROM routine_exercises');
         await database.runAsync('DELETE FROM routines');
         await database.runAsync('DELETE FROM measurements');
+        await database.runAsync('DELETE FROM physique_photos');
       });
+      for (const p of physiquePhotos) deletePhotoFile(p.file);
       setRoutines([]); setRecentHistory([]); setTotalSessions(0); setWeekCount(0);
-      setDoneDays(new Set()); setLastMeasurement(null);
+      setDoneDays(new Set()); setLastMeasurement(null); setPhysiquePhotos([]);
       toast({ icon: 'trash', tone: 'danger', msg: 'All data cleared' });
       setActiveTab('home');
     },
