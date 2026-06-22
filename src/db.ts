@@ -12,7 +12,7 @@
 import * as SQLite from 'expo-sqlite';
 import {
   Routine, Session, SessionExercise, Measurement, Profile,
-  Override, GymSchedule, PhysiquePhoto, SEED, uid, sessionVolume,
+  Override, GymSchedule, PhysiquePhoto, SEED, uid, sessionVolume, startOfWeekMs,
 } from './data';
 import { photoUri } from './photos';
 
@@ -272,20 +272,20 @@ export async function totalSessionCount(): Promise<number> {
   return row?.n ?? 0;
 }
 
-/** Count sessions in the last `days` days (for streak/week count). */
-export async function recentSessionCount(days: number): Promise<number> {
+/** Count sessions in the current calendar week (Monday-based). */
+export async function thisWeekSessionCount(): Promise<number> {
   const d = await db();
-  const cutoff = Date.now() - days * 86400000;
+  const cutoff = startOfWeekMs();
   const row = await d.getFirstAsync<{ n: number }>(
     'SELECT COUNT(*) AS n FROM sessions WHERE started_at >= ?', [cutoff]
   );
   return row?.n ?? 0;
 }
 
-/** Days that have a session within the last `days` days. */
-export async function recentSessionDays(days: number): Promise<Set<number>> {
+/** Weekdays (0=Sun … 6=Sat) that have a session in the current calendar week. */
+export async function thisWeekSessionDays(): Promise<Set<number>> {
   const d = await db();
-  const cutoff = Date.now() - days * 86400000;
+  const cutoff = startOfWeekMs();
   const rows = await d.getAllAsync<{ started_at: number }>(
     'SELECT started_at FROM sessions WHERE started_at >= ?', [cutoff]
   );

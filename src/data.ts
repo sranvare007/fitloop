@@ -110,6 +110,15 @@ export function relDate(ts: number): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+/** Midnight (local) at the start of the current calendar week — Monday-based. */
+export function startOfWeekMs(now: number = Date.now()): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  const diff = (d.getDay() + 6) % 7; // days since Monday (Sun=6 … Sat=5)
+  d.setDate(d.getDate() - diff);
+  return d.getTime();
+}
+
 export function monthLabel(ts: number): string {
   return new Date(ts).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }

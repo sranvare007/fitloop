@@ -7,6 +7,14 @@ import {
   makeFmt, sessionVolume, uid, LB, DAY_MS,
 } from './data';
 import { persistPhoto, photoUri, deletePhotoFile } from './photos';
+import {
+  AuthUser, AuthResult, ApiError, setAuthToken,
+  apiLogin, apiSignup, apiMe,
+  apiSaveRoutine, apiDeleteRoutine, apiGetRoutines,
+  apiSaveSession, apiDeleteSession, apiGetSessions,
+  apiSaveMeasurement, apiGetMeasurements,
+  apiGetSettings, apiSaveSettings,
+} from './api';
 import { scheduleGymNotifications, cancelGymNotifications } from './notifications';
 import {
   initDb,
@@ -14,7 +22,7 @@ import {
   loadRoutines, saveRoutine as dbSaveRoutine, deleteRoutine as dbDeleteRoutine,
   saveSession as dbSaveSession, deleteSessionDb,
   loadRecentSessions, loadSessionPage, totalSessionCount,
-  recentSessionCount, recentSessionDays,
+  thisWeekSessionCount, thisWeekSessionDays,
   addMeasurementDb, loadMeasurements,
   loadPhysiquePhotos, addPhysiquePhotoDb, deletePhysiquePhotoDb,
   loadStrengthSeries, loadAllExerciseNames,
@@ -107,6 +115,17 @@ export interface AppContextValue {
   importData: () => Promise<{ routines: number; sessions: number; measurements: number } | null>;
   toast: (cfg: ToastConfig | null) => void;
 
+  // Auth / cloud sync
+  authUser: AuthUser | null;
+  authOpen: boolean;
+  openAuth: () => void;
+  closeAuth: () => void;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signOut: () => void;
+  syncNow: () => Promise<void>;
+  syncing: boolean;
+
   // Overlay state
   onboarded: boolean;
   sessionOn: boolean;
@@ -143,6 +162,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [doneDays, setDoneDays] = useState<Set<number>>(new Set());
   const [lastMeasurement, setLastMeasurement] = useState<Measurement | null>(null);
   const [physiquePhotos, setPhysiquePhotos] = useState<PhysiquePhoto[]>([]);
+
+  // Auth / cloud sync
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   // UI / overlay state
   const [activeTab, setActiveTab] = useState('home');
@@ -186,6 +210,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setSessionOn(true);
       }
 
+      // Restore a previous session and verify the token in the background.
+      const token = storage.getString(KEYS.AUTH_TOKEN) ?? null;
+      const userJson = storage.getString(KEYS.AUTH_USER);
+      if (token && userJson) {
+        setAuthToken(token);
+        try { setAuthUser(JSON.parse(userJson) as AuthUser); } catch { /* ignore corrupt cache */ }
+        apiMe()
+          .then(u => { setAuthUser(u); storage.set(KEYS.AUTH_USER, JSON.stringify(u)); })
+          .catch(err => { if (err instanceof ApiError && err.status === 401) signOutLocal(); });
+      }
+
       await refreshRecentData();
       setLoaded(true);
     })();
@@ -196,15 +231,77 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setRecentHistory(recent);
     const total = await totalSessionCount();
     setTotalSessions(total);
-    const wc = await recentSessionCount(7);
+    const wc = await thisWeekSessionCount();
     setWeekCount(wc);
-    const dd = await recentSessionDays(7);
+    const dd = await thisWeekSessionDays();
     setDoneDays(dd);
 
     const measurements = await loadMeasurements(0);
     setLastMeasurement(measurements.length ? measurements[measurements.length - 1] : null);
 
     setPhysiquePhotos(await loadPhysiquePhotos(0));
+  }
+
+  // ── Auth / cloud sync ─────────────────────────────────────
+  // Fire-and-forget a mirror write; local data is already saved so failures
+  // are non-fatal and reconciled by the next "Sync now".
+  const mirror = (p: Promise<unknown>) => { p.catch(() => {}); };
+
+  function applyAuth(res: AuthResult) {
+    setAuthToken(res.token);
+    storage.set(KEYS.AUTH_TOKEN, res.token);
+    storage.set(KEYS.AUTH_USER, JSON.stringify(res.user));
+    setAuthUser(res.user);
+  }
+
+  function signOutLocal() {
+    setAuthToken(null);
+    storage.remove(KEYS.AUTH_TOKEN);
+    storage.remove(KEYS.AUTH_USER);
+    setAuthUser(null);
+  }
+
+  function applyRemoteSettings(rs: Record<string, unknown>) {
+    const patch: Partial<AppSettings> = {};
+    if (rs.profile && typeof rs.profile === 'object') { setProfile(rs.profile as Profile); patch.profile = rs.profile as Profile; }
+    if (rs.unit === 'kg' || rs.unit === 'lbs') { setUnitState(rs.unit); patch.unit = rs.unit; }
+    if (typeof rs.theme === 'string') { setThemeName(rs.theme); patch.theme = rs.theme; }
+    if (typeof rs.accent === 'string') { setAccent(rs.accent); patch.accent = rs.accent; }
+    if (typeof rs.pop === 'string') { setPop(rs.pop); patch.pop = rs.pop; }
+    if (Object.keys(patch).length) saveSettings(patch).catch(() => {});
+  }
+
+  async function pullAllSessions(): Promise<Session[]> {
+    const all: Session[] = [];
+    let offset = 0;
+    for (;;) {
+      const page = await apiGetSessions(100, offset);
+      all.push(...page.sessions);
+      offset += page.sessions.length;
+      if (page.sessions.length === 0 || all.length >= page.total) break;
+    }
+    return all;
+  }
+
+  // Push everything local, then pull everything remote and merge (by id) into
+  // the local DB. Pre-release, so no elaborate conflict resolution is needed.
+  async function fullSync() {
+    const local = await exportAllData(profile);
+    for (const r of local.routines) await apiSaveRoutine(r);
+    for (const s of local.sessions) await apiSaveSession(s);
+    for (const m of local.measurements) await apiSaveMeasurement(m);
+    await apiSaveSettings({ profile, unit, theme: themeName, accent, pop });
+
+    const [remoteRoutines, remoteMeasurements] = await Promise.all([apiGetRoutines(), apiGetMeasurements(0)]);
+    const remoteSessions = await pullAllSessions();
+    await importAllData({
+      version: 1, exportedAt: Date.now(), profile,
+      routines: remoteRoutines, sessions: remoteSessions, measurements: remoteMeasurements,
+    });
+    setRoutines(await loadRoutines());
+    await refreshRecentData();
+
+    applyRemoteSettings(await apiGetSettings());
   }
 
   // ── Theme ─────────────────────────────────────────────────
@@ -221,7 +318,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ── Settings persistence helpers ─────────────────────────
-  const persistSetting = (patch: Partial<AppSettings>) => saveSettings(patch).catch(() => {});
+  const persistSetting = (patch: Partial<AppSettings>) => {
+    saveSettings(patch).catch(() => {});
+    if (authUser) {
+      const syncable: Record<string, unknown> = {};
+      for (const k of ['profile', 'unit', 'theme', 'accent', 'pop'] as const) {
+        if (k in patch) syncable[k] = patch[k];
+      }
+      if (Object.keys(syncable).length) mirror(apiSaveSettings(syncable));
+    }
+  };
 
   const ctx: AppContextValue = {
     t, fmt,
@@ -294,6 +400,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSessionOn(false); setSessionRoutine(null); setSessionResumeData(null); setActiveTab('home');
       setInProgressSession(null); clearInProgressSessionDb().catch(() => {});
       await refreshRecentData();
+      if (authUser) mirror(apiSaveSession(sess));
       toast({ icon: 'check', msg: 'Session saved!' });
     },
     inProgressSession, sessionResumeData,
@@ -305,12 +412,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updated = await loadRoutines();
       setRoutines(updated);
       setRoutineEdit(undefined);
+      if (authUser) mirror(apiSaveRoutine(r));
       toast({ icon: 'check', msg: 'Routine saved' });
     },
     deleteRoutine: async (id) => {
       await dbDeleteRoutine(id);
       setRoutines(rs => rs.filter(x => x.id !== id));
       setRoutineEdit(undefined);
+      if (authUser) mirror(apiDeleteRoutine(id));
       toast({ icon: 'trash', tone: 'danger', msg: 'Routine deleted' });
     },
 
@@ -319,6 +428,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await deleteSessionDb(id);
       setRecentHistory(h => h.filter(x => x.id !== id));
       setTotalSessions(n => n - 1);
+      if (authUser) mirror(apiDeleteSession(id));
       toast({ icon: 'trash', tone: 'danger', msg: 'Session deleted' });
     },
 
@@ -327,6 +437,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const m: Measurement = { id: uid(), at: Date.now(), weightKg: kg, bodyFat: bf };
       await addMeasurementDb(m);
       setLastMeasurement(m);
+      if (authUser) mirror(apiSaveMeasurement(m));
       toast({ icon: 'check', msg: 'Measurement logged' });
     },
 
@@ -482,6 +593,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
 
     toast,
+
+    authUser, authOpen, syncing,
+    openAuth: () => setAuthOpen(true),
+    closeAuth: () => setAuthOpen(false),
+    signIn: async (email, password) => {
+      const res = await apiLogin(email.trim(), password);
+      applyAuth(res);
+      setAuthOpen(false);
+      toast({ icon: 'check', msg: `Welcome back, ${res.user.name || res.user.email}` });
+      setSyncing(true);
+      fullSync().catch(() => {}).finally(() => setSyncing(false));
+    },
+    signUp: async (email, password, name) => {
+      const res = await apiSignup(email.trim(), password, name.trim());
+      applyAuth(res);
+      setAuthOpen(false);
+      toast({ icon: 'check', msg: 'Account created — syncing your data' });
+      setSyncing(true);
+      fullSync().catch(() => {}).finally(() => setSyncing(false));
+    },
+    signOut: () => {
+      signOutLocal();
+      toast({ icon: 'info', msg: 'Signed out — your data stays on this device' });
+    },
+    syncNow: async () => {
+      if (!authUser || syncing) return;
+      setSyncing(true);
+      try {
+        await fullSync();
+        toast({ icon: 'check', msg: 'Synced with cloud' });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          signOutLocal();
+          toast({ icon: 'info', tone: 'danger', msg: 'Session expired — please sign in again' });
+        } else {
+          toast({ icon: 'info', tone: 'danger', msg: 'Sync failed — try again' });
+        }
+      } finally {
+        setSyncing(false);
+      }
+    },
 
     onboarded, sessionOn, sessionRoutine, routineEdit, detail, toastState,
     activeTab, setActiveTab,

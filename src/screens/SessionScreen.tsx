@@ -339,7 +339,7 @@ function StepRow({ label, t, onMinus, onPlus }: { label: string; t: Theme; onMin
   );
 }
 
-export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; lastActiveAt?: number; exercises: any[] } | null }) {
+export function SessionScreen({ routine, onExit, onSave, resumeData, onBackRequest }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; lastActiveAt?: number; exercises: any[] } | null; onBackRequest?: React.MutableRefObject<(() => boolean) | null> }) {
   const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine, openPhysiqueCamera } = useApp();
   const insets = useSafeAreaInsets();
   const seedPb = SEED_PB;
@@ -416,6 +416,17 @@ export function SessionScreen({ routine, onExit, onSave, resumeData }: { routine
       if (done) { runOnJS(setField)(null); runOnJS(setKeypadVisible)(false); }
     });
   };
+
+  // The session is hosted in a Modal whose Android back press routes through the
+  // parent's onRequestClose. Expose a handler so back dismisses the keypad first.
+  useEffect(() => {
+    if (!onBackRequest) return;
+    onBackRequest.current = () => {
+      if (keypadVisible) { dismissKeypad(); return true; }
+      return false;
+    };
+    return () => { onBackRequest.current = null; };
+  }, [keypadVisible, onBackRequest]);
 
   useEffect(() => {
     const id = setInterval(() => setElapsed(Math.round((Date.now() - startRef.current) / 1000)), 1000);
