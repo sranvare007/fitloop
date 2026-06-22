@@ -38,7 +38,13 @@
       "expo-sqlite",
       "expo-font",
       "expo-sharing",
-      "expo-updates"
+      "expo-updates",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Fitloop to use the camera to capture your physique progress photos."
+        }
+      ]
     ],
     "extra": {
       "eas": {

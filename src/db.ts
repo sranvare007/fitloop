@@ -12,8 +12,9 @@
 import * as SQLite from 'expo-sqlite';
 import {
   Routine, Session, SessionExercise, Measurement, Profile,
-  Override, GymSchedule, SEED, uid, sessionVolume,
+  Override, GymSchedule, PhysiquePhoto, SEED, uid, sessionVolume, startOfWeekMs,
 } from './data';
+import { photoUri } from './photos';
 
 export type SessionRow = {
   id: string; routine_id: string | null; routine_name: string;
@@ -89,6 +90,17 @@ export async function initDb(): Promise<void> {
     );
 
     CREATE INDEX IF NOT EXISTS idx_measurements_at ON measurements(at DESC);
+
+    CREATE TABLE IF NOT EXISTS physique_photos (
+      id        TEXT PRIMARY KEY,
+      at        INTEGER NOT NULL,
+      file      TEXT NOT NULL,
+      pose      TEXT NOT NULL DEFAULT 'front',
+      note      TEXT NOT NULL DEFAULT '',
+      weight_kg REAL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_physique_at ON physique_photos(at DESC);
   `);
 
   // Migrate: add position column to exercise_sets if missing (safe no-op if already present)
@@ -260,20 +272,20 @@ export async function totalSessionCount(): Promise<number> {
   return row?.n ?? 0;
 }
 
-/** Count sessions in the last `days` days (for streak/week count). */
-export async function recentSessionCount(days: number): Promise<number> {
+/** Count sessions in the current calendar week (Monday-based). */
+export async function thisWeekSessionCount(): Promise<number> {
   const d = await db();
-  const cutoff = Date.now() - days * 86400000;
+  const cutoff = startOfWeekMs();
   const row = await d.getFirstAsync<{ n: number }>(
     'SELECT COUNT(*) AS n FROM sessions WHERE started_at >= ?', [cutoff]
   );
   return row?.n ?? 0;
 }
 
-/** Days that have a session within the last `days` days. */
-export async function recentSessionDays(days: number): Promise<Set<number>> {
+/** Weekdays (0=Sun … 6=Sat) that have a session in the current calendar week. */
+export async function thisWeekSessionDays(): Promise<Set<number>> {
   const d = await db();
-  const cutoff = Date.now() - days * 86400000;
+  const cutoff = startOfWeekMs();
   const rows = await d.getAllAsync<{ started_at: number }>(
     'SELECT started_at FROM sessions WHERE started_at >= ?', [cutoff]
   );
@@ -337,6 +349,38 @@ export async function addMeasurementDb(m: Measurement): Promise<void> {
 export async function deleteMeasurementDb(id: string): Promise<void> {
   const d = await db();
   await d.runAsync('DELETE FROM measurements WHERE id = ?', [id]);
+}
+
+// ── Physique photos ───────────────────────────────────────────
+type PhysiquePhotoRow = { id: string; at: number; file: string; pose: string; note: string; weight_kg: number | null };
+
+function hydratePhoto(r: PhysiquePhotoRow): PhysiquePhoto {
+  return {
+    id: r.id, at: r.at, file: r.file, uri: photoUri(r.file),
+    pose: r.pose as PhysiquePhoto['pose'], note: r.note, weightKg: r.weight_kg,
+  };
+}
+
+/** All physique photos within a time range, newest-first. */
+export async function loadPhysiquePhotos(cutoffMs = 0): Promise<PhysiquePhoto[]> {
+  const d = await db();
+  const rows = await d.getAllAsync<PhysiquePhotoRow>(
+    'SELECT id, at, file, pose, note, weight_kg FROM physique_photos WHERE at >= ? ORDER BY at DESC', [cutoffMs]
+  );
+  return rows.map(hydratePhoto);
+}
+
+export async function addPhysiquePhotoDb(p: PhysiquePhoto): Promise<void> {
+  const d = await db();
+  await d.runAsync(
+    'INSERT INTO physique_photos (id, at, file, pose, note, weight_kg) VALUES (?, ?, ?, ?, ?, ?)',
+    [p.id, p.at, p.file, p.pose, p.note, p.weightKg ?? null]
+  );
+}
+
+export async function deletePhysiquePhotoDb(id: string): Promise<void> {
+  const d = await db();
+  await d.runAsync('DELETE FROM physique_photos WHERE id = ?', [id]);
 }
 
 // ── In-progress session ────────────────────────────────────────

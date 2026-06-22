@@ -104,7 +104,7 @@ function ProfileForm({ t, fmt, profile, onSave }: { t: any; fmt: any; profile: P
 }
 
 export function SettingsScreen() {
-  const { t, fmt, state, setUnit, themeName, setTheme, accent, pop, setAccent, setPop, replayOnboarding, clearData, updateProfile, exportData, importData, toast } = useApp();
+  const { t, fmt, state, setUnit, themeName, setTheme, accent, pop, setAccent, setPop, replayOnboarding, clearData, updateProfile, exportData, importData, toast, authUser, openAuth, signOut, syncNow, syncing } = useApp();
   const [editProfile, setEditProfile] = useState(false);
   const [clearStep, setClearStep] = useState(0);
   const [importing, setImporting] = useState(false);
@@ -166,8 +166,21 @@ export function SettingsScreen() {
       </Group>
 
       <Group t={t} header="ACCOUNT">
-        <Row t={t} icon="user" title="Cloud sync" sub="Back up & sync across devices" last
-          right={<View style={{ backgroundColor: `${t.orange}22`, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 7 }}><Text style={{ fontSize: 12, fontWeight: '800', color: t.orange }}>SOON</Text></View>} />
+        {authUser ? (
+          <>
+            <Row t={t} icon="user" title={authUser.name || authUser.email} sub={authUser.email}
+              right={<View style={{ backgroundColor: t.limeSoft, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 7 }}><Text style={{ fontSize: 12, fontWeight: '800', color: t.limeInk }}>SYNCED</Text></View>} />
+            <Row t={t} icon="cloud" title="Sync now" sub="Back up & pull the latest" onPress={syncing ? undefined : syncNow}
+              right={syncing
+                ? <Text style={{ fontSize: 13, color: t.mut, fontWeight: '600' }}>Syncing…</Text>
+                : <Icon name="chevR" size={18} color={t.mut2} sw={2.2} />} />
+            <Row t={t} icon="logout" title="Sign out" sub="Your data stays on this device" danger last onPress={signOut}
+              right={<Icon name="chevR" size={18} color={t.danger} sw={2.2} />} />
+          </>
+        ) : (
+          <Row t={t} icon="cloud" title="Sign in to sync" sub="Back up & sync across devices" last onPress={openAuth}
+            right={<Icon name="chevR" size={18} color={t.mut2} sw={2.2} />} />
+        )}
       </Group>
 
       <Group t={t} header="DATA">

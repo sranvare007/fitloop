@@ -18,6 +18,8 @@ import { TabNavigator } from "./navigation";
 import { SessionScreen } from "./screens/SessionScreen";
 import { RoutineEditor } from "./screens/RoutinesScreen";
 import { OnboardingScreen } from "./screens/OnboardingScreen";
+import { PhysiqueCameraScreen } from "./screens/PhysiqueCameraScreen";
+import { AuthScreen } from "./screens/AuthScreen";
 import { Toast } from "./components/Shared";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -104,6 +106,10 @@ function AppShell() {
     closeRoutineEdit,
     onboarded,
     toastState,
+    physiqueCameraOn,
+    closePhysiqueCamera,
+    authOpen,
+    closeAuth,
   } = useApp();
 
   const [fontsLoaded] = useFonts({
@@ -122,6 +128,8 @@ function AppShell() {
   const splashOpacity = useRef(new Animated.Value(1)).current;
   // Captured once at mount — onboarded may change later when user completes onboarding
   const isFirstLaunch = useRef(!onboarded).current;
+  // Lets SessionScreen intercept the Android back press (e.g. to dismiss its keypad)
+  const sessionBackRef = useRef<(() => boolean) | null>(null);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -162,14 +170,35 @@ function AppShell() {
         visible={sessionOn}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={() => {}}
+        onRequestClose={() => { sessionBackRef.current?.(); }}
       >
         <SessionScreen
           routine={sessionRoutine}
           onExit={exitSession}
           onSave={saveSession}
           resumeData={sessionResumeData}
+          onBackRequest={sessionBackRef}
         />
+      </Modal>
+
+      {/* Physique progress camera — full-screen capture flow */}
+      <Modal
+        visible={physiqueCameraOn}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={closePhysiqueCamera}
+      >
+        <PhysiqueCameraScreen />
+      </Modal>
+
+      {/* Auth — login / signup for optional cloud sync */}
+      <Modal
+        visible={authOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={closeAuth}
+      >
+        <AuthScreen />
       </Modal>
 
       {/* Routine editor — slides up when editing/creating a routine */}

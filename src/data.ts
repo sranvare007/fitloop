@@ -7,6 +7,18 @@ export interface Session {
   exercises: SessionExercise[]; volume: number; notes: string;
 }
 export interface Measurement { id: string; at: number; weightKg: number; bodyFat: number | null }
+export type PhysiquePose = 'front' | 'back' | 'side' | 'legs' | 'other';
+export interface PhysiquePhoto {
+  id: string;
+  at: number;
+  /** Filename within the physique photo directory (the only part persisted in the DB). */
+  file: string;
+  /** Resolved absolute file:// uri — derived at load time, never persisted. */
+  uri: string;
+  pose: PhysiquePose;
+  note: string;
+  weightKg: number | null;
+}
 export interface Profile { name: string; age: number; gender: string; heightCm: number; weightKg: number }
 export interface Override { day: number; id: string }
 export type GymSchedule = {
@@ -32,6 +44,17 @@ export const uid = (): string => Crypto.randomUUID();
 export const DAY_MS = 86400000;
 export const LB = 2.20462;
 export const ROUTINE_COLORS = ['#FF5A2C', '#C6FF3A', '#5B8CFF', '#FF9F1C', '#19E0A0', '#C77DFF'];
+
+export const PHYSIQUE_POSES: { key: PhysiquePose; label: string }[] = [
+  { key: 'front', label: 'Front' },
+  { key: 'back', label: 'Back' },
+  { key: 'side', label: 'Side' },
+  { key: 'legs', label: 'Legs' },
+  { key: 'other', label: 'Other' },
+];
+export function poseLabel(k: string): string {
+  return PHYSIQUE_POSES.find(p => p.key === k)?.label ?? 'Photo';
+}
 
 export const SEED_PB: Record<string, [number, number]> = {
   'Bench Press': [80, 8], 'Incline DB Press': [32, 10], 'Overhead Press': [50, 8],
@@ -85,6 +108,15 @@ export function relDate(ts: number): string {
   if (days === 1) return 'Yesterday';
   if (days < 7) return DAYS_FULL[d.getDay()];
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/** Midnight (local) at the start of the current calendar week — Monday-based. */
+export function startOfWeekMs(now: number = Date.now()): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  const diff = (d.getDay() + 6) % 7; // days since Monday (Sun=6 … Sat=5)
+  d.setDate(d.getDate() - diff);
+  return d.getTime();
 }
 
 export function monthLabel(ts: number): string {
