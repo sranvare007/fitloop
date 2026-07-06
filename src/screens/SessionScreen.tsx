@@ -179,7 +179,7 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
           )}
           {ex.sets.map((s: any, i: number) => {
             const key = `${idx}:${i}`;
-            const prevBest = bests.find(b => b.position === i) ?? null;
+            const prevBest = bests[i] ?? null;
             return editKey === key ? (
               <SetEdit key={i} i={i} set={s} t={t} fmt={fmt} field={field} prevBest={prevBest}
                 containerRef={activeEditRef}
@@ -340,7 +340,7 @@ function StepRow({ label, t, onMinus, onPlus }: { label: string; t: Theme; onMin
 }
 
 export function SessionScreen({ routine, onExit, onSave, resumeData, onBackRequest }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; lastActiveAt?: number; exercises: any[] } | null; onBackRequest?: React.MutableRefObject<(() => boolean) | null> }) {
-  const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine, openPhysiqueCamera } = useApp();
+  const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine, openPhysiqueCamera, minimizeSession } = useApp();
   const insets = useSafeAreaInsets();
   const seedPb = SEED_PB;
 
@@ -417,16 +417,23 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     });
   };
 
+  // Background the session — keep it in progress so the user can browse other
+  // screens and resume later. Flush the latest sets before unmounting.
+  const handleMinimize = useCallback(() => {
+    updateInProgressSession(exs);
+    minimizeSession();
+  }, [exs, updateInProgressSession, minimizeSession]);
+
   // The session is hosted in a Modal whose Android back press routes through the
   // parent's onRequestClose. Expose a handler so back dismisses the keypad first.
   useEffect(() => {
     if (!onBackRequest) return;
     onBackRequest.current = () => {
       if (keypadVisible) { dismissKeypad(); return true; }
-      return false;
+      handleMinimize(); return true;
     };
     return () => { onBackRequest.current = null; };
-  }, [keypadVisible, onBackRequest]);
+  }, [keypadVisible, onBackRequest, handleMinimize]);
 
   useEffect(() => {
     const id = setInterval(() => setElapsed(Math.round((Date.now() - startRef.current) / 1000)), 1000);
@@ -616,7 +623,10 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
       {/* Header */}
       <View style={{ paddingTop: insets.top }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: t.line2 }}>
-          <IconBtn name="x" t={t} onPress={() => setStopConfirm(true)} color={t.mut} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <IconBtn name="chevD" t={t} onPress={handleMinimize} color={t.mut} accessibilityLabel="Minimize workout" />
+            <IconBtn name="x" t={t} onPress={() => setStopConfirm(true)} color={t.mut} accessibilityLabel="Stop workout" />
+          </View>
           <View style={{ alignItems: 'center' }}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: t.text, letterSpacing: 0.1 }}>{routine?.name || 'Free Workout'}</Text>
             <Text style={{ fontSize: 12.5, color: t.limeInk, fontWeight: '700', marginTop: 1 }}>{fmtClock(elapsed)}</Text>

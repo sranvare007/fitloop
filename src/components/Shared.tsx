@@ -89,9 +89,9 @@ export function Btn({ children, onPress, variant = 'primary', size = 'md', t, st
 }
 
 // ── IconBtn ──────────────────────────────────────────────────
-export function IconBtn({ name, onPress, t, size = 38, color, bg, sw = 2 }: { name: string; onPress?: () => void; t: Theme; size?: number; color?: string; bg?: string; sw?: number }) {
+export function IconBtn({ name, onPress, t, size = 38, color, bg, sw = 2, accessibilityLabel }: { name: string; onPress?: () => void; t: Theme; size?: number; color?: string; bg?: string; sw?: number; accessibilityLabel?: string }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [{ width: size, height: size, borderRadius: 12, backgroundColor: bg || t.surface2, justifyContent: 'center', alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel || name} style={({ pressed }) => [{ width: size, height: size, borderRadius: 12, backgroundColor: bg || t.surface2, justifyContent: 'center', alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}>
       <Icon name={name} size={size * 0.46} color={color || t.text} sw={sw} />
     </Pressable>
   );

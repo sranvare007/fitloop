@@ -40,6 +40,36 @@ function CustomTabBar() {
   );
 }
 
+// Floating bar shown above the tab bar while a session is minimized, so the
+// user can resume from any tab. Home has its own inline resume affordance.
+function ResumeBar() {
+  const { t, activeTab, sessionOn, inProgressSession, resumeSession } = useApp();
+  if (sessionOn || !inProgressSession || activeTab === 'home') return null;
+  return (
+    <Pressable
+      onPress={resumeSession}
+      accessibilityRole="button"
+      accessibilityLabel="Resume workout in progress"
+      style={({ pressed }) => [{
+        flexDirection: 'row', alignItems: 'center', gap: 12,
+        marginHorizontal: 14, marginBottom: 8,
+        backgroundColor: t.lime, borderRadius: 16,
+        paddingVertical: 11, paddingHorizontal: 14,
+        opacity: pressed ? 0.9 : 1,
+      }]}
+    >
+      <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="play" size={16} color={t.onLime} sw={2.4} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: t.onLime }}>Workout in progress</Text>
+        <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: '700', color: t.onLime, opacity: 0.7 }}>{inProgressSession.routineName} · tap to resume</Text>
+      </View>
+      <Icon name="chevR" size={18} color={t.onLime} sw={2.4} />
+    </Pressable>
+  );
+}
+
 const SCREEN_COMPONENTS: Record<string, React.ComponentType> = {
   home: HomeScreen,
   routines: RoutinesScreen,
@@ -57,6 +87,7 @@ export function TabNavigator() {
       <View style={{ flex: 1, paddingTop: insets.top }}>
         <Screen />
       </View>
+      <ResumeBar />
       <CustomTabBar />
     </View>
   );

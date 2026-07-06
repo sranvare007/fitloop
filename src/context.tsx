@@ -79,6 +79,8 @@ export interface AppContextValue {
   nav: (tab: string) => void;
   startSession: (routine: Routine | null) => void;
   exitSession: () => void;
+  /** Close the session overlay but keep it in progress so it can be resumed. */
+  minimizeSession: () => void;
   saveSession: (data: any) => void;
   resumeSession: () => void;
   updateInProgressSession: (exercises: any[]) => void;
@@ -393,6 +395,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSessionOn(false); setSessionRoutine(null); setSessionResumeData(null);
       setInProgressSession(null); clearInProgressSessionDb().catch(() => {});
     },
+    minimizeSession: () => { setSessionOn(false); setSessionResumeData(null); },
     saveSession: async (data: any) => {
       const volume = sessionVolume(data.exercises);
       const sess: Session = { ...data, volume };

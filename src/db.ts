@@ -523,8 +523,10 @@ export type SetBest = { position: number; reps: number; kg: number };
 
 /**
  * For each exercise name, returns the all-time best set at each position
- * (highest kg, tiebroken by highest reps). Uses a window function so it's
- * one round-trip regardless of how many names are passed.
+ * (highest kg, tiebroken by highest reps), then ordered lightest-first
+ * (kg ascending, tiebroken by reps ascending) so the previous-best column
+ * shown against an active session reads in increasing order. Uses a window
+ * function so it's one round-trip regardless of how many names are passed.
  */
 export async function loadAllSetBests(names: string[]): Promise<Record<string, SetBest[]>> {
   if (!names.length) return {};
@@ -540,7 +542,7 @@ export async function loadAllSetBests(names: string[]): Promise<Record<string, S
        WHERE se.name IN (${ph})
      ) best
      WHERE best.rk = 1
-     ORDER BY best.n ASC, best.position ASC`,
+     ORDER BY best.n ASC, best.kg ASC, best.reps ASC`,
     names
   );
   const result: Record<string, SetBest[]> = {};

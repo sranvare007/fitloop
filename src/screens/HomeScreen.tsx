@@ -579,6 +579,7 @@ export function HomeScreen() {
     swapTodayRoutine,
     inProgressSession,
     resumeSession,
+    openPhysiqueCamera,
   } = useApp();
   const insets = useSafeAreaInsets();
   const today = new Date().getDay();
@@ -822,6 +823,55 @@ export function HomeScreen() {
 
         {/* Measurements */}
         <MeasureCard />
+
+        {/* Progress photo — capture anytime, independent of a session */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add progress photo"
+          onPress={openPhysiqueCamera}
+          style={({ pressed }) => [
+            {
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 14,
+              backgroundColor: t.surface,
+              borderRadius: 20,
+              padding: 16,
+              borderWidth: 1,
+              borderColor: t.line2,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <View
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 12,
+              backgroundColor: `${t.orange}22`,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name="camera" size={20} color={t.orange} sw={2.2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14.5, fontWeight: "800", color: t.text }}>
+              Add progress photo
+            </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                color: t.mut,
+                fontWeight: "600",
+                marginTop: 1,
+              }}
+            >
+              Capture your physique anytime
+            </Text>
+          </View>
+          <Icon name="chevR" size={18} color={t.mut} sw={2.2} />
+        </Pressable>
 
         {/* Recent activity */}
         {recent.length > 0 && (
