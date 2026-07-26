@@ -8,6 +8,7 @@
  *   session_exercises – exercises logged in a session
  *   exercise_sets     – individual sets (reps × kg)
  *   measurements      – body weight + body fat entries
+ *   personal_records  – user-set personal-record sets (kg × reps) per exercise, one row per set position
  */
 import * as SQLite from 'expo-sqlite';
 import {
@@ -101,7 +102,33 @@ export async function initDb(): Promise<void> {
     );
 
     CREATE INDEX IF NOT EXISTS idx_physique_at ON physique_photos(at DESC);
+
+    CREATE TABLE IF NOT EXISTS personal_records (
+      name     TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      kg       REAL NOT NULL,
+      reps     INTEGER NOT NULL,
+      at       INTEGER NOT NULL,
+      PRIMARY KEY (name, position)
+    );
   `);
+
+  // Migrate: an earlier single-row personal_records schema had no `position`
+  // column. Recreate it in the per-set shape (pre-release, so no data to keep).
+  const prColumns = await d.getAllAsync<{ name: string }>('PRAGMA table_info(personal_records)');
+  if (prColumns.length && !prColumns.some(c => c.name === 'position')) {
+    await d.execAsync(`
+      DROP TABLE personal_records;
+      CREATE TABLE personal_records (
+        name     TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        kg       REAL NOT NULL,
+        reps     INTEGER NOT NULL,
+        at       INTEGER NOT NULL,
+        PRIMARY KEY (name, position)
+      );
+    `);
+  }
 
   // Migrate: add position column to exercise_sets if missing (safe no-op if already present)
   const esColumns = await d.getAllAsync<{ name: string }>('PRAGMA table_info(exercise_sets)');
@@ -320,11 +347,16 @@ export async function loadStrengthSeries(
   }));
 }
 
-/** All distinct exercise names that appear in any logged session. */
+/** All distinct exercise names from logged sessions, saved routines, and personal records. */
 export async function loadAllExerciseNames(): Promise<string[]> {
   const d = await db();
   const rows = await d.getAllAsync<{ name: string }>(
-    'SELECT DISTINCT name FROM session_exercises ORDER BY name ASC'
+    `SELECT name FROM session_exercises
+     UNION
+     SELECT name FROM routine_exercises
+     UNION
+     SELECT name FROM personal_records
+     ORDER BY name ASC`
   );
   return rows.map(r => r.name);
 }
@@ -551,6 +583,40 @@ export async function loadAllSetBests(names: string[]): Promise<Record<string, S
     result[row.n].push({ position: row.position, reps: row.reps, kg: row.kg });
   }
   return result;
+}
+
+// ── Personal records ──────────────────────────────────────────
+/**
+ * User-set personal records: an ordered list of best sets per exercise, one
+ * `SetBest` per set position. These override the values derived from logged
+ * history (see `loadAllSetBests`); an exercise with no rows falls back to those
+ * computed bests, and the single headline PB to SEED_PB (see context `pbFor`).
+ */
+export async function loadPersonalRecords(): Promise<Record<string, SetBest[]>> {
+  const d = await db();
+  const rows = await d.getAllAsync<{ name: string; position: number; reps: number; kg: number }>(
+    'SELECT name, position, reps, kg FROM personal_records ORDER BY name ASC, position ASC'
+  );
+  const result: Record<string, SetBest[]> = {};
+  for (const row of rows) {
+    (result[row.name] ??= []).push({ position: row.position, reps: row.reps, kg: row.kg });
+  }
+  return result;
+}
+
+/** Replace all personal-record sets for an exercise. Passing an empty list clears them. */
+export async function savePersonalRecordsDb(name: string, sets: { reps: number; kg: number }[]): Promise<void> {
+  const d = await db();
+  await d.withTransactionAsync(async () => {
+    await d.runAsync('DELETE FROM personal_records WHERE name = ?', [name]);
+    const at = Date.now();
+    for (let i = 0; i < sets.length; i++) {
+      await d.runAsync(
+        'INSERT INTO personal_records (name, position, kg, reps, at) VALUES (?, ?, ?, ?, ?)',
+        [name, i, sets[i].kg, sets[i].reps, at]
+      );
+    }
+  });
 }
 
 type REAL = number;

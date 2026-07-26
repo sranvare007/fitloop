@@ -4,7 +4,7 @@ import { makeTheme, Theme } from './theme';
 import {
   Profile, Routine, Session, Measurement, FmtHelper, Override, GymSchedule,
   PhysiquePhoto, PhysiquePose,
-  makeFmt, sessionVolume, uid, LB, DAY_MS,
+  makeFmt, sessionVolume, uid, LB, DAY_MS, SEED_PB,
 } from './data';
 import { persistPhoto, photoUri, deletePhotoFile } from './photos';
 import {
@@ -29,6 +29,7 @@ import {
   exportAllData, importAllData, FitLoopExport,
   saveInProgressSessionDb, loadInProgressSessionDb, clearInProgressSessionDb, InProgressSession,
   loadAllSetBests, SetBest,
+  loadPersonalRecords, savePersonalRecordsDb,
   StrengthPoint,
 } from './db';
 import { File, Paths } from 'expo-file-system';
@@ -75,6 +76,13 @@ export interface AppContextValue {
   loadSetBests: (names: string[]) => Promise<Record<string, SetBest[]>>;
   loadBodyData: (cutoffMs: number) => Promise<{ wSeries: any[]; bfSeries: any[] }>;
   loadExerciseNames: () => Promise<string[]>;
+
+  /** User-set personal-record sets per exercise (position → best kg × reps), overriding history-derived bests. */
+  personalRecords: Record<string, SetBest[]>;
+  /** Resolved headline PB `[kg, reps]` (heaviest set) for an exercise — user-set value over the seeded default. */
+  pbFor: (name: string) => [number, number] | undefined;
+  /** Replace the personal-record sets for an exercise. Each `w` is in the current display unit; an empty list clears them. */
+  savePR: (name: string, sets: { reps: number; w: number }[]) => Promise<void>;
 
   nav: (tab: string) => void;
   startSession: (routine: Routine | null) => void;
@@ -164,6 +172,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [doneDays, setDoneDays] = useState<Set<number>>(new Set());
   const [lastMeasurement, setLastMeasurement] = useState<Measurement | null>(null);
   const [physiquePhotos, setPhysiquePhotos] = useState<PhysiquePhoto[]>([]);
+  const [personalRecords, setPersonalRecords] = useState<Record<string, SetBest[]>>({});
 
   // Auth / cloud sync
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -200,6 +209,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const rts = await loadRoutines();
       setRoutines(rts);
+
+      setPersonalRecords(await loadPersonalRecords());
 
       const ips = await loadInProgressSessionDb();
       setInProgressSession(ips);
@@ -359,6 +370,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { wSeries, bfSeries };
     },
     loadExerciseNames: () => loadAllExerciseNames(),
+
+    personalRecords,
+    pbFor: (name) => {
+      const sets = personalRecords[name];
+      if (sets && sets.length) {
+        const top = sets.reduce((a, b) => (b.kg > a.kg || (b.kg === a.kg && b.reps > a.reps) ? b : a));
+        return [top.kg, top.reps];
+      }
+      return SEED_PB[name];
+    },
+    savePR: async (name, sets) => {
+      const conv = sets.map(s => ({
+        reps: Math.max(0, Math.round(s.reps)),
+        kg: unit === 'kg' ? s.w : +(s.w / LB).toFixed(1),
+      }));
+      await savePersonalRecordsDb(name, conv);
+      setPersonalRecords(prev => ({
+        ...prev,
+        [name]: conv.map((s, i) => ({ position: i, reps: s.reps, kg: s.kg })),
+      }));
+      toast({ icon: 'star', msg: `PR updated for ${name}` });
+    },
 
     nav: (k) => setActiveTab(k),
 
@@ -523,10 +556,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await database.runAsync('DELETE FROM routines');
         await database.runAsync('DELETE FROM measurements');
         await database.runAsync('DELETE FROM physique_photos');
+        await database.runAsync('DELETE FROM personal_records');
       });
       for (const p of physiquePhotos) deletePhotoFile(p.file);
       setRoutines([]); setRecentHistory([]); setTotalSessions(0); setWeekCount(0);
-      setDoneDays(new Set()); setLastMeasurement(null); setPhysiquePhotos([]);
+      setDoneDays(new Set()); setLastMeasurement(null); setPhysiquePhotos([]); setPersonalRecords({});
       toast({ icon: 'trash', tone: 'danger', msg: 'All data cleared' });
       setActiveTab('home');
     },

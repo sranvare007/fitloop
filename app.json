@@ -12,6 +12,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "scheme": "fitloop",
+    "platforms": ["ios", "android"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fitloop.app"

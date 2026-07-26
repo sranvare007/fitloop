@@ -30,7 +30,7 @@ function SessionDetail({ session, onClose, onDelete }: { session: Session; onClo
           </View>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 27, fontWeight: '800', color: t.text, letterSpacing: -0.5 }}>{session.routineName}</Text>
           <Text style={{ fontSize: 14, color: t.mut, fontWeight: '700', marginTop: 4 }}>
             {DAYS_FULL[d.getDay()]}, {d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} · {d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Pressable, ScrollView, Modal, KeyboardAvoidingView, Platform, Dimensions, AppState } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -7,7 +7,7 @@ import { useApp } from '../context';
 import { Btn, IconBtn, Chip, Sheet, MenuRow, Stat, Switch, ExerciseSearchList, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
 import { useExerciseSearch } from '../hooks';
 import { Icon, DotsMenu } from '../components/Icon';
-import { Routine, SEED_PB, fmtClock, fmtDur, uid, sessionVolume, sessionSets } from '../data';
+import { Routine, fmtClock, fmtDur, uid, sessionVolume, sessionSets } from '../data';
 import { Theme } from '../theme';
 
 const ABANDON_GAP_MS = 20 * 60 * 1000;
@@ -24,8 +24,9 @@ function Key({ label, onPress, accent, big, t }: { label: string; onPress: () =>
 }
 
 function KeypadBar({ t, field, onKey, onClose, step }: any) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={{ backgroundColor: t.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, borderTopWidth: 1, borderTopColor: t.line, padding: 14, paddingBottom: 26, shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.3, shadowRadius: 40 }}>
+    <View style={{ backgroundColor: t.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, borderTopWidth: 1, borderTopColor: t.line, padding: 14, paddingBottom: insets.bottom + 14, shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.3, shadowRadius: 40 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6, marginBottom: 12 }}>
         <Text style={{ fontSize: 13, fontWeight: '800', color: t.mut, letterSpacing: 0.3 }}>
           Editing <Text style={{ color: t.orange }}>{field === 'reps' ? 'REPS' : 'WEIGHT'}</Text>
@@ -133,7 +134,7 @@ function SetEdit({ i, set, t, fmt, field, onField, onStep, prevBest, containerRe
   );
 }
 
-function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests, activeEditRef }: any) {
+function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests, activeEditRef, togglePR }: any) {
   const pbStr = ex.pb ? `${fmt.w(ex.pb[0])} ${fmt.wlabel} × ${ex.pb[1]}` : '—';
   const bests: { position: number; reps: number; kg: number }[] = setBests?.[ex.name] ?? [];
   return (
@@ -198,13 +199,30 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
             <Icon name="plus" size={16} color={t.orange} sw={2.6} />
             <Text style={{ fontSize: 14.5, fontWeight: '800', color: t.text }}>Add set</Text>
           </Pressable>
+          {ex.sets.length > 0 && (
+            <Pressable
+              onPress={togglePR}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: !!ex.updatePr }}
+              accessibilityLabel={`Update previous best sets for ${ex.name} when the session is saved`}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, paddingHorizontal: 6, minHeight: 44 }}
+            >
+              <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: ex.updatePr ? t.lime : t.line, backgroundColor: ex.updatePr ? t.lime : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                {ex.updatePr && <Icon name="check" size={13} color={t.onLime} sw={2.6} />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13.5, fontWeight: '700', color: t.text }}>Update previous best (PR)</Text>
+                <Text style={{ fontSize: 11.5, fontWeight: '600', color: t.mut2 }}>Save these sets as the new PR when you finish</Text>
+              </View>
+            </Pressable>
+          )}
         </View>
       )}
     </View>
   );
 }
 
-function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests, activeEditRef, onDragStart, onDragEnd }: any) {
+function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests, activeEditRef, onDragStart, onDragEnd, togglePR }: any) {
   const [draggingIdx, setDraggingIdx] = useState(-1);
   const ghostY = useSharedValue(0);
   const activeIdx = useSharedValue(-1);
@@ -310,6 +328,7 @@ function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey
               editKey={editKey} setEditKey={setEditKey} field={field} setField={setField}
               updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
               onMenu={() => onMenu(i)} setBests={setBests} activeEditRef={activeEditRef}
+              togglePR={() => togglePR(i)}
             />
           </View>
         ))}
@@ -321,6 +340,7 @@ function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey
               editKey={null} setEditKey={() => {}} field={null} setField={() => {}}
               updateSet={() => {}} addSet={() => {}} deleteSet={() => {}}
               onMenu={() => {}} setBests={setBests} activeEditRef={activeEditRef}
+              togglePR={() => {}}
             />
           </Animated.View>
         )}
@@ -340,14 +360,16 @@ function StepRow({ label, t, onMinus, onPlus }: { label: string; t: Theme; onMin
 }
 
 export function SessionScreen({ routine, onExit, onSave, resumeData, onBackRequest }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; lastActiveAt?: number; exercises: any[] } | null; onBackRequest?: React.MutableRefObject<(() => boolean) | null> }) {
-  const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine, openPhysiqueCamera, minimizeSession } = useApp();
+  const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine, openPhysiqueCamera, minimizeSession, pbFor, personalRecords, savePR } = useApp();
   const insets = useSafeAreaInsets();
-  const seedPb = SEED_PB;
 
-  const mkEx = (name: string, withSets: boolean) => ({
-    id: uid(), name, pb: seedPb[name],
-    sets: withSets ? [{ reps: 10, w: fmt.w(seedPb[name] ? seedPb[name][0] * 0.75 : 40) }, { reps: 8, w: fmt.w(seedPb[name] ? seedPb[name][0] * 0.9 : 50) }] : [],
-  });
+  const mkEx = (name: string, withSets: boolean) => {
+    const pb = pbFor(name);
+    return {
+      id: uid(), name, pb,
+      sets: withSets ? [{ reps: 10, w: fmt.w(pb ? pb[0] * 0.75 : 40) }, { reps: 8, w: fmt.w(pb ? pb[0] * 0.9 : 50) }] : [],
+    };
+  };
 
   const [exs, setExs] = useState(() =>
     resumeData?.exercises?.length
@@ -384,6 +406,9 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
   const [addPhoto, setAddPhoto] = useState(false);
   const { results: addExResults, loading: addExLoading } = useExerciseSearch(newExName);
   const { results: swapResults, loading: swapLoading } = useExerciseSearch(swapQuery);
+  // A fresh (non-resumed) session prefills each exercise with its previous best
+  // sets once those bests have loaded. Resumed sessions keep their saved sets.
+  const prefilledRef = useRef(!!resumeData?.exercises?.length);
   const startRef = useRef(resumeData?.startedAt ?? Date.now());
   const [elapsed, setElapsed] = useState(() => Math.round((Date.now() - startRef.current) / 1000));
   const lastSetLoggedAtRef = useRef(resumeData?.lastActiveAt ?? resumeData?.startedAt ?? Date.now());
@@ -484,11 +509,32 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     return () => clearTimeout(timer);
   }, [editKey, field]);
 
-  // Reload per-set bests whenever the exercise list changes (mount + swaps)
+  // Reload per-set bests whenever the exercise list changes (mount + swaps).
+  // On the first load of a fresh session, prefill each exercise with its three
+  // previous best sets (user-set PRs take priority over history-derived bests).
   useEffect(() => {
     const names = [...new Set(exs.map((e: any) => e.name as string))];
-    loadSetBests(names).then(setSetBests).catch(() => {});
+    loadSetBests(names).then(bests => {
+      setSetBests(bests);
+      if (prefilledRef.current) return;
+      prefilledRef.current = true;
+      setExs(prev => prev.map((e: any) => {
+        const pr = personalRecords[e.name];
+        const source = pr && pr.length ? pr : bests[e.name];
+        if (!source || !source.length) return e;
+        return { ...e, sets: source.slice(0, 3).map(b => ({ reps: b.reps, w: fmt.w(b.kg) })) };
+      }));
+    }).catch(() => {});
   }, [exs.map((e: any) => e.name).join('|')]);
+
+  // User-set personal records override the history-derived per-set bests.
+  const displayBests = useMemo(() => {
+    const out: Record<string, { position: number; reps: number; kg: number }[]> = { ...setBests };
+    for (const name of Object.keys(personalRecords)) {
+      if (personalRecords[name]?.length) out[name] = personalRecords[name];
+    }
+    return out;
+  }, [setBests, personalRecords]);
 
   const editIdx = editKey ? +editKey.split(':')[0] : -1;
   const editSetIdx = editKey ? +editKey.split(':')[1] : -1;
@@ -573,9 +619,13 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
 
   const addEx = () => doAddEx(newExName);
 
+  const togglePR = (ei: number) => {
+    setExs(prev => prev.map((e: any, j: number) => j !== ei ? e : { ...e, updatePr: !e.updatePr }));
+  };
+
   const swapEx = (ei: number, name: string) => {
     const nm = name.trim(); if (!nm) return;
-    setExs(prev => prev.map((e: any, j: number) => j !== ei ? e : { ...e, name: nm, pb: seedPb[nm], swapped: true }));
+    setExs(prev => prev.map((e: any, j: number) => j !== ei ? e : { ...e, name: nm, pb: pbFor(nm), swapped: true }));
     setSwap(null); setSwapQuery(''); openEx(exs[ei].id);
     toast({ icon: 'swap', msg: `Swapped to ${nm}` });
   };
@@ -593,7 +643,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     return sameDay ? time : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
   };
 
-  const useAdjustedFinish = gapDetected && earlyFinish;
+  const useAdjustedFinish = earlyFinish;
   const finishDurationSec = useAdjustedFinish
     ? Math.max(0, Math.round((finishAtMs - startRef.current) / 1000))
     : elapsed;
@@ -603,16 +653,24 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     const gap = idle || sawLongGapRef.current;
     setGapDetected(gap);
     setEarlyFinish(gap);
-    if (gap) setFinishAtMs(clampFinish(lastSetLoggedAtRef.current));
+    setFinishAtMs(clampFinish(gap ? lastSetLoggedAtRef.current : Date.now()));
     setFinish(true);
   };
 
-  const doSave = () => {
+  const doSave = async () => {
     const exsKg = exs.filter((e: any) => e.sets.length).map((e: any) => ({
       id: e.id, name: e.name,
       sets: e.sets.map((s: any) => ({ reps: s.reps, kg: fmt.unit === 'kg' ? s.w : +(s.w / 2.20462).toFixed(1) }))
     }));
     const endedAt = useAdjustedFinish ? finishAtMs : Date.now();
+    // Sequential awaits: each save opens its own transaction on the shared
+    // SQLite connection, and the session save below does too — overlapping
+    // them throws "cannot start a transaction within a transaction".
+    for (const e of exs) {
+      if (e.updatePr && e.sets.length) {
+        await savePR(e.name, e.sets.map((s: any) => ({ reps: s.reps, w: +s.w || 0 })));
+      }
+    }
     onSave({ id: uid(), routineId: routine?.id || null, routineName: routine?.name || 'Free Workout', startedAt: startRef.current, endedAt, durationSec: finishDurationSec, exercises: exsKg, notes });
     if (addPhoto) openPhysiqueCamera();
   };
@@ -636,7 +694,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
       </View>
 
       {/* Exercise list */}
-      <ScrollView ref={scrollRef} style={{ flex: 1 }} scrollEnabled={scrollEnabled} contentContainerStyle={{ padding: 14, paddingBottom: keypadVisible ? 320 : 130, gap: 12 }} showsVerticalScrollIndicator={false}
+      <ScrollView ref={scrollRef} style={{ flex: 1 }} scrollEnabled={scrollEnabled} contentContainerStyle={{ padding: 14, paddingBottom: (keypadVisible ? 340 : 110) + insets.bottom, gap: 12 }} showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={e => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
         onScrollBeginDrag={() => { if (field) dismissKeypad(); }}>
@@ -649,9 +707,10 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
           setField={(f: string | null) => { if (f === null) dismissKeypad(); else { setField(f); setFresh(true); } }}
           updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
           onMenu={(i: number) => setMenu(i)}
-          setBests={setBests} activeEditRef={activeEditRef}
+          setBests={displayBests} activeEditRef={activeEditRef}
           onDragStart={() => setScrollEnabled(false)}
           onDragEnd={() => setScrollEnabled(true)}
+          togglePR={togglePR}
         />
         <Pressable onPress={() => setAddExOpen(true)} style={({ pressed }) => [{ padding: 15, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.line, backgroundColor: t.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.7 : 1 }]}>
           <Icon name="plus" size={18} color={t.orange} sw={2.6} />
@@ -765,14 +824,15 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
 
       {/* Finish summary */}
       <Sheet open={finish} onClose={() => setFinish(false)} t={t} title="Finish workout">
-        {gapDetected && (
-          <View style={{ backgroundColor: t.elev, borderRadius: 16, borderWidth: 1, borderColor: t.line2, padding: 14, marginBottom: 16 }}>
+        <View style={{ backgroundColor: t.elev, borderRadius: 16, borderWidth: 1, borderColor: t.line2, padding: 14, marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
               <Icon name="clock" size={16} color={t.orange} sw={2} />
-              <Text style={{ fontSize: 14.5, fontWeight: '800', color: t.text }}>Were you away?</Text>
+              <Text style={{ fontSize: 14.5, fontWeight: '800', color: t.text }}>{gapDetected ? 'Were you away?' : 'When did you finish?'}</Text>
             </View>
             <Text style={{ fontSize: 13, fontWeight: '500', color: t.mut, lineHeight: 18 }}>
-              This session sat open for a while. Did you actually finish earlier than now?
+              {gapDetected
+                ? 'This session sat open for a while. Did you actually finish earlier than now?'
+                : 'Confirm your finish time so the duration is recorded correctly.'}
             </Text>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
               <Pressable accessibilityRole="button" accessibilityLabel="I finished earlier" onPress={() => { setEarlyFinish(true); setFinishAtMs(clampFinish(lastSetLoggedAtRef.current)); }}
@@ -794,8 +854,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
                 </View>
               </View>
             )}
-          </View>
-        )}
+        </View>
         <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
           <View style={{ flex: 1 }}><Stat t={t} label="DURATION" value={fmtDur(finishDurationSec)} /></View>
           <View style={{ flex: 1 }}><Stat t={t} label="SETS" value={totalSets} /></View>
