@@ -60,31 +60,43 @@ function KeypadBar({ t, field, onKey, onClose, step }: any) {
   );
 }
 
-function SetRow({ i, set, t, fmt, onEdit, onDelete, prevBest }: any) {
+function SetRow({ i, set, t, fmt, onEdit, onDelete, onNote, prevBest }: any) {
+  const note = (set.note || '').trim();
   return (
-    <Pressable onPress={onEdit} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 6, borderRadius: 12, marginBottom: 3 }}>
-      <Pressable onPress={onDelete} style={{ width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
-        <Icon name="trash" size={16} color={t.danger} sw={1.9} />
-      </Pressable>
-      <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
-        <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.mut }}>{i + 1}</Text>
+    <Pressable onPress={onEdit} style={{ paddingVertical: 7, paddingHorizontal: 6, borderRadius: 12, marginBottom: 3 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Pressable onPress={onDelete} style={{ width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
+          <Icon name="trash" size={16} color={t.danger} sw={1.9} />
+        </Pressable>
+        <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
+          <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.mut }}>{i + 1}</Text>
+        </View>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: t.text }}>{set.reps}</Text>
+          {prevBest != null && <Text style={{ fontSize: 10.5, fontWeight: '700', color: t.mut2 }}>{prevBest.reps}</Text>}
+        </View>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: t.text }}>{set.w}</Text>
+          {prevBest != null && <Text style={{ fontSize: 10.5, fontWeight: '700', color: t.mut2 }}>{fmt.w(prevBest.kg)}</Text>}
+        </View>
+        <Pressable onPress={onNote} accessibilityRole="button"
+          accessibilityLabel={note ? `Edit comment on set ${i + 1}` : `Add a comment to set ${i + 1}`}
+          style={{ width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 2 }}>
+          <Icon name="note" size={15} color={note ? t.orange : t.mut2} sw={1.9} />
+        </Pressable>
+        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: t.limeSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="check" size={12} color={t.limeInk} sw={2.6} />
+        </View>
       </View>
-      <View style={{ flex: 1, alignItems: 'center' }}>
-        <Text style={{ fontSize: 18, fontWeight: '800', color: t.text }}>{set.reps}</Text>
-        {prevBest != null && <Text style={{ fontSize: 10.5, fontWeight: '700', color: t.mut2 }}>{prevBest.reps}</Text>}
-      </View>
-      <View style={{ flex: 1, alignItems: 'center' }}>
-        <Text style={{ fontSize: 18, fontWeight: '800', color: t.text }}>{set.w}</Text>
-        {prevBest != null && <Text style={{ fontSize: 10.5, fontWeight: '700', color: t.mut2 }}>{fmt.w(prevBest.kg)}</Text>}
-      </View>
-      <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: t.limeSoft, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="check" size={12} color={t.limeInk} sw={2.6} />
-      </View>
+      {!!note && (
+        <Text numberOfLines={2} style={{ fontSize: 12, fontWeight: '600', color: t.mut, marginTop: 3, marginLeft: 62, marginRight: 26, lineHeight: 16 }}>{note}</Text>
+      )}
     </Pressable>
   );
 }
 
-function SetEdit({ i, set, t, fmt, field, onField, onStep, prevBest, containerRef }: any) {
+function SetEdit({ i, set, t, fmt, field, onField, onStep, onNote, prevBest, containerRef }: any) {
+  const note = (set.note || '').trim();
   return (
     <View ref={containerRef} style={{ backgroundColor: t.bg === '#0C0D10' ? '#0E0F13' : t.surface2, borderRadius: 16, padding: 13, marginBottom: 8, borderWidth: 1, borderColor: t.line }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: prevBest ? 8 : 12 }}>
@@ -130,11 +142,19 @@ function SetEdit({ i, set, t, fmt, field, onField, onStep, prevBest, containerRe
           </View>
         </View>
       </View>
+      <Pressable onPress={onNote} accessibilityRole="button"
+        accessibilityLabel={note ? `Edit comment on set ${i + 1}` : `Add a comment to set ${i + 1}`}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, minHeight: 44, paddingHorizontal: 11, borderRadius: 12, backgroundColor: t.elev, borderWidth: 1, borderColor: note ? t.line : 'transparent' }}>
+        <Icon name="note" size={15} color={note ? t.orange : t.mut2} sw={1.9} />
+        <Text numberOfLines={2} style={{ flex: 1, fontSize: 12.5, fontWeight: note ? '600' : '700', color: note ? t.text : t.mut2, lineHeight: 17 }}>
+          {note || 'Add a comment'}
+        </Text>
+      </Pressable>
     </View>
   );
 }
 
-function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests, activeEditRef, togglePR }: any) {
+function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, openNote, onMenu, setBests, activeEditRef, togglePR }: any) {
   const pbStr = ex.pb ? `${fmt.w(ex.pb[0])} ${fmt.wlabel} × ${ex.pb[1]}` : '—';
   const bests: { position: number; reps: number; kg: number }[] = setBests?.[ex.name] ?? [];
   return (
@@ -185,10 +205,12 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
               <SetEdit key={i} i={i} set={s} t={t} fmt={fmt} field={field} prevBest={prevBest}
                 containerRef={activeEditRef}
                 onField={(f: string) => setField(field === f ? null : f)}
+                onNote={() => openNote(idx, i)}
                 onStep={(f: string, d: number) => updateSet(idx, i, f, d, true)} />
             ) : (
               <SetRow key={i} i={i} set={s} t={t} fmt={fmt} prevBest={prevBest}
                 onEdit={() => { setEditKey(key); setField('kg'); }}
+                onNote={() => openNote(idx, i)}
                 onDelete={() => deleteSet(idx, i)} />
             );
           })}
@@ -222,7 +244,7 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
   );
 }
 
-function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, onMenu, setBests, activeEditRef, onDragStart, onDragEnd, togglePR }: any) {
+function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, openNote, onMenu, setBests, activeEditRef, onDragStart, onDragEnd, togglePR }: any) {
   const [draggingIdx, setDraggingIdx] = useState(-1);
   const ghostY = useSharedValue(0);
   const activeIdx = useSharedValue(-1);
@@ -326,7 +348,7 @@ function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey
               ex={ex} idx={i} t={t} fmt={fmt}
               isOpen={openIds.has(ex.id)} onToggle={() => toggleOpen(ex.id)}
               editKey={editKey} setEditKey={setEditKey} field={field} setField={setField}
-              updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
+              updateSet={updateSet} addSet={addSet} deleteSet={deleteSet} openNote={openNote}
               onMenu={() => onMenu(i)} setBests={setBests} activeEditRef={activeEditRef}
               togglePR={() => togglePR(i)}
             />
@@ -338,7 +360,7 @@ function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey
               ex={draggingItem} idx={draggingIdx} t={t} fmt={fmt}
               isOpen={false} onToggle={() => {}}
               editKey={null} setEditKey={() => {}} field={null} setField={() => {}}
-              updateSet={() => {}} addSet={() => {}} deleteSet={() => {}}
+              updateSet={() => {}} addSet={() => {}} deleteSet={() => {}} openNote={() => {}}
               onMenu={() => {}} setBests={setBests} activeEditRef={activeEditRef}
               togglePR={() => {}}
             />
@@ -367,7 +389,9 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     const pb = pbFor(name);
     return {
       id: uid(), name, pb,
-      sets: withSets ? [{ reps: 10, w: fmt.w(pb ? pb[0] * 0.75 : 40) }, { reps: 8, w: fmt.w(pb ? pb[0] * 0.9 : 50) }] : [],
+      sets: withSets
+        ? [{ reps: 10, w: fmt.w(pb ? pb[0] * 0.75 : 40), note: '' }, { reps: 8, w: fmt.w(pb ? pb[0] * 0.9 : 50), note: '' }]
+        : [],
     };
   };
 
@@ -400,6 +424,8 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
   const [gapDetected, setGapDetected] = useState(false);
   const [earlyFinish, setEarlyFinish] = useState(false);
   const [finishAtMs, setFinishAtMs] = useState(0);
+  const [noteTarget, setNoteTarget] = useState<{ ei: number; si: number } | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
   const [stopConfirm, setStopConfirm] = useState(false);
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [notes, setNotes] = useState('');
@@ -522,7 +548,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
         const pr = personalRecords[e.name];
         const source = pr && pr.length ? pr : bests[e.name];
         if (!source || !source.length) return e;
-        return { ...e, sets: source.slice(0, 3).map(b => ({ reps: b.reps, w: fmt.w(b.kg) })) };
+        return { ...e, sets: source.slice(0, 3).map(b => ({ reps: b.reps, w: fmt.w(b.kg), note: '' })) };
       }));
     }).catch(() => {});
   }, [exs.map((e: any) => e.name).join('|')]);
@@ -579,10 +605,29 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     setExs(prev => prev.map((e, j) => {
       if (j !== ei) return e;
       const last = e.sets[e.sets.length - 1] || { reps: 8, w: fmt.w(e.pb ? e.pb[0] : 20) };
-      return { ...e, sets: [...e.sets, { reps: last.reps, w: last.w }] };
+      return { ...e, sets: [...e.sets, { reps: last.reps, w: last.w, note: '' }] };
     }));
     const newIdx = exs[ei].sets.length;
     openEx(exs[ei].id); setEditKey(ei + ':' + newIdx); setField('kg'); setFresh(true);
+  };
+
+  // Set comments are edited in a sheet rather than inline: the inline set editor
+  // drives the custom numeric keypad, and a text field there would fight it for
+  // the bottom of the screen.
+  const openNote = (ei: number, si: number) => {
+    if (field) dismissKeypad();
+    setNoteDraft(exs[ei]?.sets[si]?.note ?? '');
+    setNoteTarget({ ei, si });
+  };
+
+  const saveNote = () => {
+    if (!noteTarget) return;
+    const { ei, si } = noteTarget;
+    const note = noteDraft.trim();
+    setExs(prev => prev.map((e, j) => j !== ei ? e : {
+      ...e, sets: e.sets.map((s: any, k: number) => k !== si ? s : { ...s, note })
+    }));
+    setNoteTarget(null);
   };
 
   const deleteSet = (ei: number, si: number) => {
@@ -660,7 +705,11 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
   const doSave = async () => {
     const exsKg = exs.filter((e: any) => e.sets.length).map((e: any) => ({
       id: e.id, name: e.name,
-      sets: e.sets.map((s: any) => ({ reps: s.reps, kg: fmt.unit === 'kg' ? s.w : +(s.w / 2.20462).toFixed(1) }))
+      sets: e.sets.map((s: any) => ({
+        reps: s.reps,
+        kg: fmt.unit === 'kg' ? s.w : +(s.w / 2.20462).toFixed(1),
+        note: (s.note || '').trim(),
+      }))
     }));
     const endedAt = useAdjustedFinish ? finishAtMs : Date.now();
     // Sequential awaits: each save opens its own transaction on the shared
@@ -705,7 +754,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
           editKey={editKey} setEditKey={setEditKey}
           field={field}
           setField={(f: string | null) => { if (f === null) dismissKeypad(); else { setField(f); setFresh(true); } }}
-          updateSet={updateSet} addSet={addSet} deleteSet={deleteSet}
+          updateSet={updateSet} addSet={addSet} deleteSet={deleteSet} openNote={openNote}
           onMenu={(i: number) => setMenu(i)}
           setBests={displayBests} activeEditRef={activeEditRef}
           onDragStart={() => setScrollEnabled(false)}
@@ -741,6 +790,26 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
           <KeypadBar t={t} field={field} step={field === 'reps' ? 1 : fmt.step} onKey={onKey} onClose={dismissKeypad} />
         </Animated.View>
       )}
+
+      {/* Set comment */}
+      <Sheet open={noteTarget !== null} onClose={saveNote} t={t}
+        title={noteTarget ? `${exs[noteTarget.ei]?.name} · Set ${noteTarget.si + 1}` : 'Set comment'}>
+        <Text style={{ fontSize: 13, color: t.mut, fontWeight: '600', marginTop: -8, marginBottom: 14, lineHeight: 20 }}>
+          Anything worth remembering about this set — grip, machine setting, how it felt.
+        </Text>
+        <TextInput autoFocus multiline value={noteDraft} onChangeText={v => setNoteDraft(v.slice(0, 200))}
+          placeholder="e.g. Used 5kg plate" placeholderTextColor={t.mut2}
+          accessibilityLabel="Set comment"
+          style={{ minHeight: 90, padding: 13, borderRadius: 14, borderWidth: 1.5, borderColor: t.line, backgroundColor: t.surface2, color: t.text, fontSize: 15, fontWeight: '500', textAlignVertical: 'top' }} />
+        <Text style={{ fontSize: 11.5, fontWeight: '700', color: t.mut2, textAlign: 'right', marginTop: 6, marginBottom: 14 }}>{noteDraft.length}/200</Text>
+        <Btn t={t} variant="pop" full size="lg" onPress={saveNote} icon="check">Save comment</Btn>
+        {!!noteDraft.trim() && (
+          <>
+            <View style={{ height: 9 }} />
+            <Btn t={t} variant="ghost" full onPress={() => setNoteDraft('')}>Clear</Btn>
+          </>
+        )}
+      </Sheet>
 
       {/* Exercise menu */}
       <Sheet open={menu !== null} onClose={() => setMenu(null)} t={t} title={menu !== null ? exs[menu]?.name : undefined}>

@@ -42,6 +42,7 @@ const PATHS: Record<string, string> = {
   image: 'M4 5h16v14H4z M4 16l4.5-4.5 3 3 4-4L20 14 M8.5 9.6a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6z',
   logout: 'M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3 M16 17l5-5-5-5 M21 12H9',
   cloud: 'M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.3A3.5 3.5 0 0 1 18 18z',
+  note: 'M20 16a2 2 0 0 1-2 2H8.5L4.5 21V6a2 2 0 0 1 2-2H18a2 2 0 0 1 2 2z M8.5 9.5h7 M8.5 13h4.5',
 };
 
 interface IconProps {

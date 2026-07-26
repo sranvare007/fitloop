@@ -59,12 +59,20 @@ function SessionDetail({ session, onClose, onDelete }: { session: Session; onClo
                     <Text style={{ flex: 1, textAlign: 'center', fontSize: 10.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.5 }}>{fmt.wlabel.toUpperCase()}</Text>
                   </View>
                   {ex.sets.map((s: any, j: number) => (
-                    <View key={j} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 2, borderTopWidth: j ? 1 : 0, borderTopColor: t.line2 }}>
-                      <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut }}>{j + 1}</Text>
+                    <View key={j} style={{ paddingVertical: 7, paddingHorizontal: 2, borderTopWidth: j ? 1 : 0, borderTopColor: t.line2 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                          <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut }}>{j + 1}</Text>
+                        </View>
+                        <Text style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '800', color: t.text }}>{s.reps}</Text>
+                        <Text style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '800', color: t.text }}>{fmt.w(s.kg)}</Text>
                       </View>
-                      <Text style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '800', color: t.text }}>{s.reps}</Text>
-                      <Text style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '800', color: t.text }}>{fmt.w(s.kg)}</Text>
+                      {!!(s.note || '').trim() && (
+                        <View style={{ flexDirection: 'row', gap: 6, marginTop: 5, marginLeft: 30 }}>
+                          <Icon name="note" size={13} color={t.mut2} sw={1.9} />
+                          <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: t.mut, lineHeight: 17 }}>{s.note.trim()}</Text>
+                        </View>
+                      )}
                     </View>
                   ))}
                 </View>

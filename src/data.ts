@@ -1,4 +1,5 @@
-export interface SetEntry { reps: number; kg: number }
+/** `note` is a free-text comment on the set (e.g. "used 5kg plate"); '' when none. */
+export interface SetEntry { reps: number; kg: number; note: string }
 export interface SessionExercise { id: string; name: string; sets: SetEntry[] }
 export interface Routine { id: string; name: string; days: number[]; color: string; exercises: string[] }
 export interface Session {

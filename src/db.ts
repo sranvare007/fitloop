@@ -6,7 +6,7 @@
  *   routine_exercises – ordered exercise names per routine
  *   sessions          – completed workout sessions
  *   session_exercises – exercises logged in a session
- *   exercise_sets     – individual sets (reps × kg)
+ *   exercise_sets     – individual sets (reps × kg) + an optional free-text note
  *   measurements      – body weight + body fat entries
  *   personal_records  – user-set personal-record sets (kg × reps) per exercise, one row per set position
  */
@@ -80,7 +80,8 @@ export async function initDb(): Promise<void> {
       id                  TEXT PRIMARY KEY,
       session_exercise_id TEXT NOT NULL REFERENCES session_exercises(id) ON DELETE CASCADE,
       reps                INTEGER NOT NULL,
-      kg                  REAL NOT NULL
+      kg                  REAL NOT NULL,
+      note                TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS measurements (
@@ -130,10 +131,13 @@ export async function initDb(): Promise<void> {
     `);
   }
 
-  // Migrate: add position column to exercise_sets if missing (safe no-op if already present)
+  // Migrate: add position/note columns to exercise_sets if missing (safe no-op if already present)
   const esColumns = await d.getAllAsync<{ name: string }>('PRAGMA table_info(exercise_sets)');
   if (!esColumns.some(c => c.name === 'position')) {
     await d.execAsync('ALTER TABLE exercise_sets ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!esColumns.some(c => c.name === 'note')) {
+    await d.execAsync("ALTER TABLE exercise_sets ADD COLUMN note TEXT NOT NULL DEFAULT ''");
   }
 }
 
@@ -251,8 +255,8 @@ export async function saveSession(s: Session): Promise<void> {
       for (let si = 0; si < ex.sets.length; si++) {
         const set = ex.sets[si];
         await d.runAsync(
-          'INSERT INTO exercise_sets (id, session_exercise_id, reps, kg, position) VALUES (?, ?, ?, ?, ?)',
-          [uid(), sexId, set.reps, set.kg, si]
+          'INSERT INTO exercise_sets (id, session_exercise_id, reps, kg, position, note) VALUES (?, ?, ?, ?, ?, ?)',
+          [uid(), sexId, set.reps, set.kg, si, set.note ?? '']
         );
       }
     }
@@ -500,8 +504,8 @@ export async function importAllData(data: FitLoopExport): Promise<ImportResult> 
           for (let si = 0; si < ex.sets.length; si++) {
             const set = ex.sets[si];
             await d.runAsync(
-              'INSERT INTO exercise_sets (id, session_exercise_id, reps, kg, position) VALUES (?, ?, ?, ?, ?)',
-              [uid(), sexId, set.reps, set.kg, si]
+              'INSERT INTO exercise_sets (id, session_exercise_id, reps, kg, position, note) VALUES (?, ?, ?, ?, ?, ?)',
+              [uid(), sexId, set.reps, set.kg, si, set.note ?? '']
             );
           }
         }
@@ -531,8 +535,8 @@ async function hydrateSession(d: SQLite.SQLiteDatabase, row: SessionRow): Promis
   );
   const exercises: SessionExercise[] = [];
   for (const ex of exRows) {
-    const sets = await d.getAllAsync<{ reps: number; kg: number }>(
-      'SELECT reps, kg FROM exercise_sets WHERE session_exercise_id = ? ORDER BY rowid ASC',
+    const sets = await d.getAllAsync<{ reps: number; kg: number; note: string }>(
+      'SELECT reps, kg, note FROM exercise_sets WHERE session_exercise_id = ? ORDER BY rowid ASC',
       [ex.id]
     );
     exercises.push({ id: ex.id, name: ex.name, sets });
