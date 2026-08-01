@@ -60,33 +60,40 @@ function KeypadBar({ t, field, onKey, onClose, step }: any) {
   );
 }
 
-function SetRow({ i, set, t, fmt, onEdit, onDelete, onNote, prevBest }: any) {
+function SetRow({ i, set, t, fmt, onEdit, onDelete, onNote, onToggleDone, prevBest }: any) {
   const note = (set.note || '').trim();
+  const done = !!set.done;
   return (
     <Pressable onPress={onEdit} style={{ paddingVertical: 7, paddingHorizontal: 6, borderRadius: 12, marginBottom: 3 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Pressable onPress={onDelete} style={{ width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
+        <Pressable onPress={onDelete} accessibilityRole="button" accessibilityLabel={`Delete set ${i + 1}`}
+          style={{ width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
           <Icon name="trash" size={16} color={t.danger} sw={1.9} />
         </Pressable>
-        <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
-          <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.mut }}>{i + 1}</Text>
-        </View>
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: t.text }}>{set.reps}</Text>
-          {prevBest != null && <Text style={{ fontSize: 10.5, fontWeight: '700', color: t.mut2 }}>{prevBest.reps}</Text>}
-        </View>
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: t.text }}>{set.w}</Text>
-          {prevBest != null && <Text style={{ fontSize: 10.5, fontWeight: '700', color: t.mut2 }}>{fmt.w(prevBest.kg)}</Text>}
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', opacity: done ? 1 : 0.42 }}>
+          <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: t.elev, alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
+            <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.mut }}>{i + 1}</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: t.text }}>{set.reps}</Text>
+            {prevBest != null && <Text style={{ fontSize: 10.5, fontWeight: '700', color: t.mut2 }}>{prevBest.reps}</Text>}
+          </View>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: t.text }}>{set.w}</Text>
+            {prevBest != null && <Text style={{ fontSize: 10.5, fontWeight: '700', color: t.mut2 }}>{fmt.w(prevBest.kg)}</Text>}
+          </View>
         </View>
         <Pressable onPress={onNote} accessibilityRole="button"
           accessibilityLabel={note ? `Edit comment on set ${i + 1}` : `Add a comment to set ${i + 1}`}
           style={{ width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 2 }}>
           <Icon name="note" size={15} color={note ? t.orange : t.mut2} sw={1.9} />
         </Pressable>
-        <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: t.limeSoft, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="check" size={12} color={t.limeInk} sw={2.6} />
-        </View>
+        <Pressable onPress={onToggleDone} hitSlop={11}
+          accessibilityRole="checkbox" accessibilityState={{ checked: done }}
+          accessibilityLabel={done ? `Set ${i + 1} done, tap to unmark` : `Mark set ${i + 1} as done`}
+          style={{ width: 22, height: 22, borderRadius: 6, borderWidth: done ? 0 : 1.5, borderColor: t.line, backgroundColor: done ? t.limeSoft : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="check" size={12} color={done ? t.limeInk : t.mut2} sw={2.6} />
+        </Pressable>
       </View>
       {!!note && (
         <Text numberOfLines={2} style={{ fontSize: 12, fontWeight: '600', color: t.mut, marginTop: 3, marginLeft: 62, marginRight: 26, lineHeight: 16 }}>{note}</Text>
@@ -95,8 +102,9 @@ function SetRow({ i, set, t, fmt, onEdit, onDelete, onNote, prevBest }: any) {
   );
 }
 
-function SetEdit({ i, set, t, fmt, field, onField, onStep, onNote, prevBest, containerRef }: any) {
+function SetEdit({ i, set, t, fmt, field, onField, onStep, onNote, onToggleDone, prevBest, containerRef }: any) {
   const note = (set.note || '').trim();
+  const done = !!set.done;
   return (
     <View ref={containerRef} style={{ backgroundColor: t.bg === '#0C0D10' ? '#0E0F13' : t.surface2, borderRadius: 16, padding: 13, marginBottom: 8, borderWidth: 1, borderColor: t.line }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: prevBest ? 8 : 12 }}>
@@ -142,21 +150,31 @@ function SetEdit({ i, set, t, fmt, field, onField, onStep, onNote, prevBest, con
           </View>
         </View>
       </View>
-      <Pressable onPress={onNote} accessibilityRole="button"
-        accessibilityLabel={note ? `Edit comment on set ${i + 1}` : `Add a comment to set ${i + 1}`}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, minHeight: 44, paddingHorizontal: 11, borderRadius: 12, backgroundColor: t.elev, borderWidth: 1, borderColor: note ? t.line : 'transparent' }}>
-        <Icon name="note" size={15} color={note ? t.orange : t.mut2} sw={1.9} />
-        <Text numberOfLines={2} style={{ flex: 1, fontSize: 12.5, fontWeight: note ? '600' : '700', color: note ? t.text : t.mut2, lineHeight: 17 }}>
-          {note || 'Add a comment'}
-        </Text>
-      </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 12 }}>
+        <Pressable onPress={onNote} accessibilityRole="button"
+          accessibilityLabel={note ? `Edit comment on set ${i + 1}` : `Add a comment to set ${i + 1}`}
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 11, borderRadius: 12, backgroundColor: t.elev, borderWidth: 1, borderColor: note ? t.line : 'transparent' }}>
+          <Icon name="note" size={15} color={note ? t.orange : t.mut2} sw={1.9} />
+          <Text numberOfLines={2} style={{ flex: 1, fontSize: 12.5, fontWeight: note ? '600' : '700', color: note ? t.text : t.mut2, lineHeight: 17 }}>
+            {note || 'Add a comment'}
+          </Text>
+        </Pressable>
+        <Pressable onPress={onToggleDone}
+          accessibilityRole="checkbox" accessibilityState={{ checked: done }}
+          accessibilityLabel={done ? `Set ${i + 1} done, tap to unmark` : `Mark set ${i + 1} as done`}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 13, borderRadius: 12, backgroundColor: done ? t.lime : t.elev, borderWidth: 1, borderColor: done ? t.lime : t.line }}>
+          <Icon name="check" size={14} color={done ? t.onLime : t.mut2} sw={2.6} />
+          <Text style={{ fontSize: 12.5, fontWeight: '800', color: done ? t.onLime : t.mut2 }}>{done ? 'Done' : 'Mark done'}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, openNote, onMenu, setBests, activeEditRef, togglePR }: any) {
+function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, openNote, toggleDone, onMenu, setBests, activeEditRef, togglePR }: any) {
   const pbStr = ex.pb ? `${fmt.w(ex.pb[0])} ${fmt.wlabel} × ${ex.pb[1]}` : '—';
   const bests: { position: number; reps: number; kg: number }[] = setBests?.[ex.name] ?? [];
+  const doneCount = ex.sets.filter((s: any) => s.done).length;
   return (
     <View style={{ backgroundColor: t.surface, borderRadius: 20, borderWidth: 1, borderColor: t.line2, overflow: 'hidden' }}>
       <Pressable onPress={onToggle} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, padding: 15 }}>
@@ -173,7 +191,9 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
                 <Text style={{ fontSize: 12, fontWeight: '800', color: t.orange }}>SWAPPED</Text>
               </View>
             )}
-            <Text style={{ fontSize: 12.5, color: t.mut, fontWeight: '600' }}>{ex.sets.length} {ex.sets.length === 1 ? 'set' : 'sets'}</Text>
+            <Text style={{ fontSize: 12.5, color: doneCount === 0 && ex.sets.length > 0 ? t.mut2 : t.mut, fontWeight: '600' }}>
+              {ex.sets.length === 0 ? 'No sets' : `${doneCount}/${ex.sets.length} logged`}
+            </Text>
           </View>
         </View>
         <Pressable onPress={onMenu} style={{ padding: 6 }}>
@@ -206,22 +226,29 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
                 containerRef={activeEditRef}
                 onField={(f: string) => setField(field === f ? null : f)}
                 onNote={() => openNote(idx, i)}
+                onToggleDone={() => toggleDone(idx, i)}
                 onStep={(f: string, d: number) => updateSet(idx, i, f, d, true)} />
             ) : (
               <SetRow key={i} i={i} set={s} t={t} fmt={fmt} prevBest={prevBest}
                 onEdit={() => { setEditKey(key); setField('kg'); }}
                 onNote={() => openNote(idx, i)}
+                onToggleDone={() => toggleDone(idx, i)}
                 onDelete={() => deleteSet(idx, i)} />
             );
           })}
           {ex.sets.length === 0 && (
             <Text style={{ textAlign: 'center', color: t.mut2, fontSize: 13, paddingVertical: 6, fontWeight: '600' }}>No sets yet — add your first below</Text>
           )}
+          {ex.sets.length > 0 && doneCount === 0 && (
+            <Text style={{ textAlign: 'center', color: t.mut2, fontSize: 11.5, paddingTop: 4, fontWeight: '600' }}>
+              Targets from last time — edit or tick a set to log it
+            </Text>
+          )}
           <Pressable onPress={() => addSet(idx)} style={{ marginTop: 6, padding: 12, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
             <Icon name="plus" size={16} color={t.orange} sw={2.6} />
             <Text style={{ fontSize: 14.5, fontWeight: '800', color: t.text }}>Add set</Text>
           </Pressable>
-          {ex.sets.length > 0 && (
+          {doneCount > 0 && (
             <Pressable
               onPress={togglePR}
               accessibilityRole="checkbox"
@@ -234,7 +261,7 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13.5, fontWeight: '700', color: t.text }}>Update previous best (PR)</Text>
-                <Text style={{ fontSize: 11.5, fontWeight: '600', color: t.mut2 }}>Save these sets as the new PR when you finish</Text>
+                <Text style={{ fontSize: 11.5, fontWeight: '600', color: t.mut2 }}>Save your logged sets as the new PR when you finish</Text>
               </View>
             </Pressable>
           )}
@@ -244,7 +271,7 @@ function ExerciseCard({ ex, idx, t, fmt, isOpen, onToggle, editKey, setEditKey, 
   );
 }
 
-function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, openNote, onMenu, setBests, activeEditRef, onDragStart, onDragEnd, togglePR }: any) {
+function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey, setEditKey, field, setField, updateSet, addSet, deleteSet, openNote, toggleDone, onMenu, setBests, activeEditRef, onDragStart, onDragEnd, togglePR }: any) {
   const [draggingIdx, setDraggingIdx] = useState(-1);
   const ghostY = useSharedValue(0);
   const activeIdx = useSharedValue(-1);
@@ -349,6 +376,7 @@ function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey
               isOpen={openIds.has(ex.id)} onToggle={() => toggleOpen(ex.id)}
               editKey={editKey} setEditKey={setEditKey} field={field} setField={setField}
               updateSet={updateSet} addSet={addSet} deleteSet={deleteSet} openNote={openNote}
+              toggleDone={toggleDone}
               onMenu={() => onMenu(i)} setBests={setBests} activeEditRef={activeEditRef}
               togglePR={() => togglePR(i)}
             />
@@ -361,6 +389,7 @@ function SortableSessionList({ exs, setExs, openIds, toggleOpen, t, fmt, editKey
               isOpen={false} onToggle={() => {}}
               editKey={null} setEditKey={() => {}} field={null} setField={() => {}}
               updateSet={() => {}} addSet={() => {}} deleteSet={() => {}} openNote={() => {}}
+              toggleDone={() => {}}
               onMenu={() => {}} setBests={setBests} activeEditRef={activeEditRef}
               togglePR={() => {}}
             />
@@ -390,14 +419,16 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     return {
       id: uid(), name, pb,
       sets: withSets
-        ? [{ reps: 10, w: fmt.w(pb ? pb[0] * 0.75 : 40), note: '' }, { reps: 8, w: fmt.w(pb ? pb[0] * 0.9 : 50), note: '' }]
+        ? [{ reps: 10, w: fmt.w(pb ? pb[0] * 0.75 : 40), note: '', done: false }, { reps: 8, w: fmt.w(pb ? pb[0] * 0.9 : 50), note: '', done: false }]
         : [],
     };
   };
 
   const [exs, setExs] = useState(() =>
     resumeData?.exercises?.length
-      ? resumeData.exercises
+      // Sessions persisted before per-set completion existed counted every set,
+      // so treat their sets as already logged rather than silently dropping them.
+      ? resumeData.exercises.map((e: any) => ({ ...e, sets: e.sets.map((s: any) => ({ ...s, done: s.done ?? true })) }))
       : (routine?.exercises || ['Bench Press']).map((n, i) => mkEx(n, i === 0))
   );
   const [setBests, setSetBests] = useState<Record<string, { position: number; reps: number; kg: number }[]>>({});
@@ -538,6 +569,8 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
   // Reload per-set bests whenever the exercise list changes (mount + swaps).
   // On the first load of a fresh session, prefill each exercise with its three
   // previous best sets (user-set PRs take priority over history-derived bests).
+  // Prefilled sets are targets, not results — they stay `done: false` until the
+  // user edits or ticks them, and only done sets are saved.
   useEffect(() => {
     const names = [...new Set(exs.map((e: any) => e.name as string))];
     loadSetBests(names).then(bests => {
@@ -548,7 +581,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
         const pr = personalRecords[e.name];
         const source = pr && pr.length ? pr : bests[e.name];
         if (!source || !source.length) return e;
-        return { ...e, sets: source.slice(0, 3).map(b => ({ reps: b.reps, w: fmt.w(b.kg), note: '' })) };
+        return { ...e, sets: source.slice(0, 3).map(b => ({ reps: b.reps, w: fmt.w(b.kg), note: '', done: false })) };
       }));
     }).catch(() => {});
   }, [exs.map((e: any) => e.name).join('|')]);
@@ -565,19 +598,27 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
   const editIdx = editKey ? +editKey.split(':')[0] : -1;
   const editSetIdx = editKey ? +editKey.split(':')[1] : -1;
 
+  // Touching a set's numbers is an implicit "I did this", so it also marks the
+  // set done — the tick is only needed when the prefilled target was spot on.
   const updateSet = (ei: number, si: number, f: string, delta: number, isStep: boolean) => {
     setExs(prev => prev.map((e, j) => j !== ei ? e : {
       ...e, sets: e.sets.map((s: any, k: number) => {
         if (k !== si) return s;
-        if (f === 'reps') return { ...s, reps: Math.max(1, s.reps + (isStep ? Math.round(delta) : 0)) };
-        return { ...s, w: Math.max(0, +(s.w + (isStep ? delta : 0)).toFixed(2)) };
+        if (f === 'reps') return { ...s, done: true, reps: Math.max(1, s.reps + (isStep ? Math.round(delta) : 0)) };
+        return { ...s, done: true, w: Math.max(0, +(s.w + (isStep ? delta : 0)).toFixed(2)) };
       })
     }));
   };
 
   const setSetValue = (ei: number, si: number, f: string, value: any) => {
     setExs(prev => prev.map((e, j) => j !== ei ? e : {
-      ...e, sets: e.sets.map((s: any, k: number) => k !== si ? s : { ...s, [f === 'reps' ? 'reps' : 'w']: value })
+      ...e, sets: e.sets.map((s: any, k: number) => k !== si ? s : { ...s, done: true, [f === 'reps' ? 'reps' : 'w']: value })
+    }));
+  };
+
+  const toggleDone = (ei: number, si: number) => {
+    setExs(prev => prev.map((e, j) => j !== ei ? e : {
+      ...e, sets: e.sets.map((s: any, k: number) => k !== si ? s : { ...s, done: !s.done })
     }));
   };
 
@@ -605,7 +646,9 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     setExs(prev => prev.map((e, j) => {
       if (j !== ei) return e;
       const last = e.sets[e.sets.length - 1] || { reps: 8, w: fmt.w(e.pb ? e.pb[0] : 20) };
-      return { ...e, sets: [...e.sets, { reps: last.reps, w: last.w, note: '' }] };
+      // Unlike prefilled targets, a set the user explicitly adds mid-workout is
+      // one they are doing — start it logged so the common path needs no tick.
+      return { ...e, sets: [...e.sets, { reps: last.reps, w: last.w, note: '', done: true }] };
     }));
     const newIdx = exs[ei].sets.length;
     openEx(exs[ei].id); setEditKey(ei + ':' + newIdx); setField('kg'); setFresh(true);
@@ -675,8 +718,21 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     toast({ icon: 'swap', msg: `Swapped to ${nm}` });
   };
 
-  const totalVol = Math.round(exs.reduce((a: number, e: any) => a + e.sets.reduce((s: number, x: any) => s + x.reps * x.w, 0), 0));
-  const totalSets = exs.reduce((a: number, e: any) => a + e.sets.length, 0);
+  // Only sets the user marked done count towards the session. Prefilled targets
+  // that were never performed are dropped rather than saved as real work.
+  const loggedExs = useMemo(
+    () => exs
+      .map((e: any) => ({ ...e, sets: e.sets.filter((s: any) => s.done) }))
+      .filter((e: any) => e.sets.length > 0),
+    [exs]
+  );
+  const skippedNames = useMemo(
+    () => exs.filter((e: any) => !e.sets.some((s: any) => s.done)).map((e: any) => e.name),
+    [exs]
+  );
+
+  const totalVol = Math.round(loggedExs.reduce((a: number, e: any) => a + e.sets.reduce((s: number, x: any) => s + x.reps * x.w, 0), 0));
+  const totalSets = loggedExs.reduce((a: number, e: any) => a + e.sets.length, 0);
 
   const clampFinish = (ms: number) => Math.min(Date.now(), Math.max(startRef.current, ms));
   const adjustFinish = (deltaMs: number) => setFinishAtMs(prev => clampFinish(prev + deltaMs));
@@ -703,7 +759,8 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
   };
 
   const doSave = async () => {
-    const exsKg = exs.filter((e: any) => e.sets.length).map((e: any) => ({
+    if (!loggedExs.length) return;
+    const exsKg = loggedExs.map((e: any) => ({
       id: e.id, name: e.name,
       sets: e.sets.map((s: any) => ({
         reps: s.reps,
@@ -715,8 +772,8 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     // Sequential awaits: each save opens its own transaction on the shared
     // SQLite connection, and the session save below does too — overlapping
     // them throws "cannot start a transaction within a transaction".
-    for (const e of exs) {
-      if (e.updatePr && e.sets.length) {
+    for (const e of loggedExs) {
+      if (e.updatePr) {
         await savePR(e.name, e.sets.map((s: any) => ({ reps: s.reps, w: +s.w || 0 })));
       }
     }
@@ -755,6 +812,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
           field={field}
           setField={(f: string | null) => { if (f === null) dismissKeypad(); else { setField(f); setFresh(true); } }}
           updateSet={updateSet} addSet={addSet} deleteSet={deleteSet} openNote={openNote}
+          toggleDone={toggleDone}
           onMenu={(i: number) => setMenu(i)}
           setBests={displayBests} activeEditRef={activeEditRef}
           onDragStart={() => setScrollEnabled(false)}
@@ -779,7 +837,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Text style={{ fontSize: 13, fontWeight: '700', color: t.mut }}>{totalSets} sets</Text>
             <Text style={{ fontSize: 13, color: t.mut, opacity: 0.4 }}>·</Text>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: t.mut }}>{exs.length} lifts</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: t.mut }}>{loggedExs.length} lifts</Text>
           </View>
         </View>
       )}
@@ -929,6 +987,24 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
           <View style={{ flex: 1 }}><Stat t={t} label="SETS" value={totalSets} /></View>
           <View style={{ flex: 1 }}><Stat t={t} label="VOLUME" value={totalVol.toLocaleString()} sub={fmt.wlabel} /></View>
         </View>
+        {skippedNames.length > 0 && (
+          <View style={{ flexDirection: 'row', gap: 9, padding: 13, borderRadius: 14, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.line2, marginBottom: 16 }}>
+            <Icon name="info" size={16} color={t.mut} sw={2} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13.5, fontWeight: '800', color: t.text }}>
+                {skippedNames.length === 1 ? '1 exercise not logged' : `${skippedNames.length} exercises not logged`}
+              </Text>
+              <Text style={{ fontSize: 12.5, fontWeight: '600', color: t.mut, lineHeight: 18, marginTop: 2 }}>
+                {skippedNames.join(', ')} — no sets ticked, so {skippedNames.length === 1 ? "it won't" : "they won't"} be saved.
+              </Text>
+            </View>
+          </View>
+        )}
+        {loggedExs.length === 0 && (
+          <Text style={{ fontSize: 13, fontWeight: '600', color: t.mut, lineHeight: 19, marginBottom: 16 }}>
+            Nothing is logged yet. Tick the sets you actually performed, then finish.
+          </Text>
+        )}
         <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.4, marginBottom: 7 }}>SESSION NOTES</Text>
         <TextInput value={notes} onChangeText={v => setNotes(v.slice(0, 300))} placeholder="How did it feel? (optional)" placeholderTextColor={t.mut2} multiline
           style={{ minHeight: 70, padding: 13, borderRadius: 14, borderWidth: 1.5, borderColor: t.line, backgroundColor: t.surface2, color: t.text, fontSize: 15, fontWeight: '500', marginBottom: 16, textAlignVertical: 'top' }} />
@@ -942,7 +1018,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
           </View>
           <Switch on={addPhoto} onChange={setAddPhoto} t={t} />
         </Pressable>
-        <Btn t={t} variant="pop" full size="lg" onPress={doSave} icon="check">Save session</Btn>
+        <Btn t={t} variant="pop" full size="lg" onPress={doSave} icon="check" disabled={loggedExs.length === 0}>Save session</Btn>
         <View style={{ height: 10 }} />
         <Btn t={t} variant="ghost" full onPress={() => setFinish(false)}>Keep going</Btn>
       </Sheet>
