@@ -108,7 +108,7 @@ export interface AppContextValue {
   minimizeSession: () => void;
   saveSession: (data: any) => void;
   resumeSession: () => void;
-  updateInProgressSession: (exercises: any[]) => void;
+  updateInProgressSession: (exercises: any[], openIds?: string[]) => void;
   inProgressSession: InProgressSession | null;
   sessionResumeData: InProgressSession | null;
   editRoutine: (r: Routine | null) => void;
@@ -546,13 +546,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSessionResumeData(inProgressSession);
       setSessionOn(true);
     },
-    updateInProgressSession: (exercises: any[]) => {
+    updateInProgressSession: (exercises: any[], openIds?: string[]) => {
       const data: InProgressSession = {
         startedAt: sessionStartedAtRef.current,
         lastActiveAt: Date.now(),
         routineId: sessionRoutine?.id || null,
         routineName: sessionRoutine?.name || 'Free Workout',
         exercises,
+        openIds,
       };
       setInProgressSession(data);
       saveInProgressSessionDb(data).catch(() => {});

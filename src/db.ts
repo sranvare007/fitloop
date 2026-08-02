@@ -495,6 +495,8 @@ export interface InProgressSession {
   routineId: string | null;
   routineName: string;
   exercises: any[];
+  /** Ids of the exercise cards left expanded, so resuming restores the same view. */
+  openIds?: string[];
 }
 
 export async function saveInProgressSessionDb(data: InProgressSession): Promise<void> {

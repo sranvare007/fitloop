@@ -410,7 +410,7 @@ function StepRow({ label, t, onMinus, onPlus }: { label: string; t: Theme; onMin
   );
 }
 
-export function SessionScreen({ routine, onExit, onSave, resumeData, onBackRequest }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; lastActiveAt?: number; exercises: any[] } | null; onBackRequest?: React.MutableRefObject<(() => boolean) | null> }) {
+export function SessionScreen({ routine, onExit, onSave, resumeData, onBackRequest }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; lastActiveAt?: number; exercises: any[]; openIds?: string[] } | null; onBackRequest?: React.MutableRefObject<(() => boolean) | null> }) {
   const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine, openPhysiqueCamera, minimizeSession, pbFor, personalRecords, savePR } = useApp();
   const insets = useSafeAreaInsets();
 
@@ -433,6 +433,10 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
   );
   const [setBests, setSetBests] = useState<Record<string, { position: number; reps: number; kg: number }[]>>({});
   const [openIds, setOpenIds] = useState<Set<string>>(() => {
+    // A resumed session restores exactly what was left expanded — including
+    // nothing at all. Sessions persisted before this was tracked fall back to
+    // the first exercise, as a fresh session does.
+    if (resumeData?.openIds) return new Set(resumeData.openIds);
     const first = (resumeData?.exercises?.length ? resumeData.exercises : exs)[0]?.id;
     return new Set<string>(first ? [first] : []);
   });
@@ -502,9 +506,9 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
   // Background the session — keep it in progress so the user can browse other
   // screens and resume later. Flush the latest sets before unmounting.
   const handleMinimize = useCallback(() => {
-    updateInProgressSession(exs);
+    updateInProgressSession(exs, [...openIds]);
     minimizeSession();
-  }, [exs, updateInProgressSession, minimizeSession]);
+  }, [exs, openIds, updateInProgressSession, minimizeSession]);
 
   // The session is hosted in a Modal whose Android back press routes through the
   // parent's onRequestClose. Expose a handler so back dismisses the keypad first.
@@ -522,13 +526,17 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     return () => clearInterval(id);
   }, []);
 
+  // Expanding a card is persisted like any other change, but it is not logging,
+  // so it must not count as activity for the abandoned-session gap check.
+  const prevExsRef = useRef(exs);
   useEffect(() => {
-    if (persistMountedRef.current) lastSetLoggedAtRef.current = Date.now();
-    else persistMountedRef.current = true;
+    if (!persistMountedRef.current) persistMountedRef.current = true;
+    else if (prevExsRef.current !== exs) lastSetLoggedAtRef.current = Date.now();
+    prevExsRef.current = exs;
     if (persistTimer.current) clearTimeout(persistTimer.current);
-    persistTimer.current = setTimeout(() => updateInProgressSession(exs), 400);
+    persistTimer.current = setTimeout(() => updateInProgressSession(exs, [...openIds]), 400);
     return () => { if (persistTimer.current) clearTimeout(persistTimer.current); };
-  }, [exs]);
+  }, [exs, openIds]);
 
   // Detect an abandoned session: a long gap since the last logged set on resume,
   // or the app being backgrounded for a long stretch mid-session.
