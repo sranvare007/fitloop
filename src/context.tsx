@@ -14,13 +14,15 @@ import {
   apiSaveSession, apiDeleteSession, apiGetSessions,
   apiSaveMeasurement, apiGetMeasurements,
   apiGetSettings, apiSaveSettings,
+  apiWorkoutCalories,
 } from './api';
 import { scheduleGymNotifications, cancelGymNotifications } from './notifications';
 import {
   initDb,
   loadSettings, saveSettings, AppSettings,
   loadRoutines, saveRoutine as dbSaveRoutine, deleteRoutine as dbDeleteRoutine,
-  saveSession as dbSaveSession, deleteSessionDb,
+  saveSession as dbSaveSession, deleteSessionDb, saveSessionCaloriesDb,
+  countSessionsMissingCalories, loadSessionsMissingCalories,
   loadRecentSessions, loadSessionPage, totalSessionCount,
   thisWeekSessionCount, thisWeekSessionDays,
   addMeasurementDb, loadMeasurements,
@@ -83,6 +85,21 @@ export interface AppContextValue {
   pbFor: (name: string) => [number, number] | undefined;
   /** Replace the personal-record sets for an exercise. Each `w` is in the current display unit; an empty list clears them. */
   savePR: (name: string, sets: { reps: number; w: number }[]) => Promise<void>;
+
+  /**
+   * Ask the backend to estimate calories burnt for a saved session, persist the
+   * result and return the updated session. Returns null when it could not run
+   * (signed out, offline, or the estimator rejected the workout).
+   */
+  estimateCalories: (s: Session) => Promise<Session | null>;
+  /** Id of the session currently being estimated, if any. */
+  caloriesPending: string | null;
+  /** Progress of the backfill over pre-existing history, or null when idle. */
+  caloriesBackfill: { done: number; total: number } | null;
+  /** Re-run the backfill over any sessions still missing an estimate. */
+  backfillCalories: () => Promise<void>;
+  /** How many saved sessions still have no calorie estimate. */
+  countMissingCalories: () => Promise<number>;
 
   nav: (tab: string) => void;
   startSession: (routine: Routine | null) => void;
@@ -150,6 +167,8 @@ export interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 export const useApp = () => useContext(AppContext)!;
 
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false);
 
@@ -178,6 +197,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [caloriesPending, setCaloriesPending] = useState<string | null>(null);
+  const [backfill, setBackfill] = useState<{ done: number; total: number } | null>(null);
+  /** Sessions this run could not estimate — skipped so the pass can terminate. */
+  const failedBackfillIds = useRef<Set<string>>(new Set());
 
   // UI / overlay state
   const [activeTab, setActiveTab] = useState('home');
@@ -317,6 +340,116 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     applyRemoteSettings(await apiGetSettings());
   }
 
+  // ── Calories ──────────────────────────────────────────────
+  // The estimate is an online extra on top of an already-saved session: it runs
+  // after the local write, and a failure never blocks logging a workout.
+  async function runCalorieEstimate(sess: Session): Promise<Session | null> {
+    // The endpoint caps the payload at 50 exercises and 120-character names.
+    const posted = sess.exercises.filter(e => e.sets.length > 0).slice(0, 50);
+    if (!posted.length) return null;
+
+    const inRange = (n: number, lo: number, hi: number) => (n >= lo && n <= hi ? n : null);
+    const durationSec = Math.min(86400, Math.max(1, Math.round(sess.durationSec)));
+    setCaloriesPending(sess.id);
+    try {
+      const est = await apiWorkoutCalories({
+        sessionId: sess.id,
+        routineName: sess.routineName.slice(0, 120),
+        durationSec,
+        exercises: posted.map(e => ({
+          name: e.name.slice(0, 120),
+          sets: e.sets.map(s => ({ reps: s.reps, kg: s.kg })),
+        })),
+        profile: {
+          weightKg: profile.weightKg,
+          heightCm: inRange(profile.heightCm, 50, 300),
+          age: inRange(profile.age, 5, 120),
+          gender: profile.gender || null,
+        },
+      });
+
+      // The backend answers one entry per posted exercise, in the posted order.
+      const byId = new Map<string, number>();
+      est.exercises.forEach((e, i) => {
+        const local = posted[i];
+        if (local) byId.set(local.id, e.calories);
+      });
+
+      await saveSessionCaloriesDb(
+        sess.id, est.totalCalories, est.summary,
+        [...byId].map(([id, calories]) => ({ id, calories })),
+      );
+
+      const updated: Session = {
+        ...sess,
+        calories: est.totalCalories,
+        caloriesSummary: est.summary,
+        exercises: sess.exercises.map(e => (byId.has(e.id) ? { ...e, calories: byId.get(e.id)! } : e)),
+      };
+      setRecentHistory(h => h.map(s => (s.id === updated.id ? updated : s)));
+      setDetail(d => (d && d.id === updated.id ? updated : d));
+      return updated;
+    } finally {
+      setCaloriesPending(null);
+    }
+  }
+
+  /** Body weight is the one input the MET formula cannot work without. */
+  const canEstimateCalories = () => profile.weightKg >= 20 && profile.weightKg <= 500;
+
+  // ── Backfill for pre-existing history ─────────────────────
+  // Sessions logged before the calorie estimator existed have no estimate. Walk
+  // them newest-first, pacing well under the endpoint's 20-req/min LLM limit.
+  // User-triggered from Settings; a session that gets an estimate drops out of
+  // the query, so an interrupted run simply resumes where it left off.
+  const BACKFILL_DELAY_MS = 4500;
+  const BACKFILL_BATCH = 25;
+  const backfillRunning = useRef(false);
+
+  async function runCaloriesBackfill(): Promise<void> {
+    if (backfillRunning.current) return;
+    backfillRunning.current = true;
+    let attempted = 0;
+    let succeeded = 0;
+    try {
+      const total = await countSessionsMissingCalories();
+      if (!total) return;
+      setBackfill({ done: 0, total });
+
+      for (;;) {
+        // Skipped sessions stay in the query and, being newer than anything not
+        // yet reached, sit at its head — so offsetting past them lands on the
+        // next unattempted session.
+        const batch = await loadSessionsMissingCalories(BACKFILL_BATCH, failedBackfillIds.current.size);
+        const pending = batch.filter(s => !failedBackfillIds.current.has(s.id));
+        if (!pending.length) break;
+
+        for (const sess of pending) {
+          if (attempted > 0) await sleep(BACKFILL_DELAY_MS);
+          try {
+            const updated = await runCalorieEstimate(sess);
+            if (updated) succeeded++; else failedBackfillIds.current.add(sess.id);
+          } catch (err) {
+            // Rate limit, server trouble or no connection: stop and resume later.
+            // A 4xx means this session will never estimate — skip it and move on.
+            const status = err instanceof ApiError ? err.status : 0;
+            if (status === 0 || status === 429 || status >= 500) return;
+            failedBackfillIds.current.add(sess.id);
+          }
+          attempted++;
+          setBackfill({ done: attempted, total });
+        }
+      }
+    } finally {
+      backfillRunning.current = false;
+      setBackfill(null);
+      if (succeeded) {
+        await refreshRecentData();
+        toast({ icon: 'flame', msg: `Calories estimated for ${succeeded} past ${succeeded === 1 ? 'workout' : 'workouts'}` });
+      }
+    }
+  }
+
   // ── Theme ─────────────────────────────────────────────────
   const systemScheme = useColorScheme();
   const resolvedThemeName = themeName === 'system' ? (systemScheme ?? 'dark') : themeName;
@@ -436,10 +569,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSessionOn(false); setSessionRoutine(null); setSessionResumeData(null); setActiveTab('home');
       setInProgressSession(null); clearInProgressSessionDb().catch(() => {});
       await refreshRecentData();
-      if (authUser) mirror(apiSaveSession(sess));
       toast({ icon: 'check', msg: 'Session saved!' });
+      if (authUser) {
+        mirror(apiSaveSession(sess));
+        if (canEstimateCalories()) {
+          runCalorieEstimate(sess)
+            .then(updated => {
+              if (updated?.calories) toast({ icon: 'flame', msg: `${updated.calories} kcal burnt` });
+            })
+            .catch(() => {});
+        }
+      }
     },
     inProgressSession, sessionResumeData,
+
+    estimateCalories: async (s) => {
+      if (!authUser) {
+        toast({ icon: 'cloud', msg: 'Sign in to estimate calories' });
+        return null;
+      }
+      if (!canEstimateCalories()) {
+        toast({ icon: 'info', tone: 'danger', msg: 'Set your body weight in Settings first' });
+        return null;
+      }
+      try {
+        const updated = await runCalorieEstimate(s);
+        if (!updated) {
+          toast({ icon: 'info', tone: 'danger', msg: 'No logged sets to estimate from' });
+          return null;
+        }
+        toast({ icon: 'flame', msg: `${updated.calories} kcal burnt` });
+        return updated;
+      } catch (err) {
+        toast({ icon: 'info', tone: 'danger', msg: err instanceof ApiError ? err.message : 'Could not estimate calories' });
+        return null;
+      }
+    },
+    caloriesPending,
+    caloriesBackfill: backfill,
+    countMissingCalories: () => countSessionsMissingCalories(),
+    backfillCalories: async () => {
+      if (backfillRunning.current) return;
+      if (!authUser) { toast({ icon: 'cloud', msg: 'Sign in to estimate calories' }); return; }
+      if (!canEstimateCalories()) {
+        toast({ icon: 'info', tone: 'danger', msg: 'Set your body weight in Settings first' });
+        return;
+      }
+      // An explicit retry, including of sessions that failed on an earlier run.
+      failedBackfillIds.current.clear();
+      await runCaloriesBackfill();
+    },
 
     editRoutine: (r) => setRoutineEdit(r === null ? null : r),
     closeRoutineEdit: () => setRoutineEdit(undefined),

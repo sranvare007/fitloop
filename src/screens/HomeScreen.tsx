@@ -983,6 +983,28 @@ export function HomeScreen() {
                         LIFTS
                       </Text>
                     </View>
+                    {s.calories != null && (
+                      <View>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "800",
+                            color: t.limeInk,
+                          }}
+                        >
+                          {Math.round(s.calories)}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 10.5,
+                            color: t.mut2,
+                            fontWeight: "700",
+                          }}
+                        >
+                          KCAL
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </Pressable>
               ))}

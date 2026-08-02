@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Pressable, ScrollView } from 'react-native';
 import { useApp } from '../context';
 import { Btn, Chip, Sheet, Segmented, Switch, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
@@ -104,10 +104,18 @@ function ProfileForm({ t, fmt, profile, onSave }: { t: any; fmt: any; profile: P
 }
 
 export function SettingsScreen() {
-  const { t, fmt, state, setUnit, themeName, setTheme, accent, pop, setAccent, setPop, replayOnboarding, clearData, updateProfile, exportData, importData, toast, authUser, openAuth, signOut, syncNow, syncing } = useApp();
+  const { t, fmt, state, setUnit, themeName, setTheme, accent, pop, setAccent, setPop, replayOnboarding, clearData, updateProfile, exportData, importData, toast, authUser, openAuth, signOut, syncNow, syncing, caloriesBackfill, backfillCalories, countMissingCalories } = useApp();
   const [editProfile, setEditProfile] = useState(false);
   const [clearStep, setClearStep] = useState(0);
   const [importing, setImporting] = useState(false);
+  const [missingCalories, setMissingCalories] = useState<number | null>(null);
+  const backfilling = !!caloriesBackfill;
+
+  // Re-check on mount and when a backfill starts or finishes, so the row always
+  // reflects what is actually left to estimate.
+  useEffect(() => {
+    countMissingCalories().then(setMissingCalories).catch(() => {});
+  }, [backfilling]);
 
   async function handleImport() {
     setImporting(true);
@@ -184,6 +192,16 @@ export function SettingsScreen() {
       </Group>
 
       <Group t={t} header="DATA">
+        {!!missingCalories && (
+          <Row t={t} icon="flame" title="Estimate past calories"
+            sub={caloriesBackfill
+              ? 'Estimating — this can take a few minutes'
+              : `${missingCalories} earlier workout${missingCalories === 1 ? '' : 's'} without an estimate`}
+            onPress={caloriesBackfill ? undefined : backfillCalories}
+            right={caloriesBackfill
+              ? <Text style={{ fontSize: 13, color: t.mut, fontWeight: '600' }}>{caloriesBackfill.done}/{caloriesBackfill.total}</Text>
+              : <Icon name="chevR" size={18} color={t.mut2} sw={2.2} />} />
+        )}
         <Row t={t} icon="upload" title="Export data" sub="Share routines & history as a backup file" onPress={exportData} right={<Icon name="chevR" size={18} color={t.mut2} sw={2.2} />} />
         <Row t={t} icon="download" title="Import data" sub="Restore from a backup file" onPress={importing ? undefined : handleImport}
           right={importing

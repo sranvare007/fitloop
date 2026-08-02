@@ -8,12 +8,18 @@ import { DAYS, DAYS_FULL, monthLabel, fmtDur, sessionVolume, sessionSets, Sessio
 
 const PAGE_SIZE = 20;
 
-function SessionDetail({ session, onClose, onDelete }: { session: Session; onClose: () => void; onDelete: (id: string) => void }) {
-  const { t, fmt } = useApp();
+function SessionDetail({ session, onClose, onDelete, onUpdated }: { session: Session; onClose: () => void; onDelete: (id: string) => void; onUpdated: (s: Session) => void }) {
+  const { t, fmt, estimateCalories, caloriesPending } = useApp();
   const insets = useSafeAreaInsets();
   const [confirm, setConfirm] = useState(false);
   const vol = sessionVolume(session.exercises), sets = sessionSets(session.exercises);
   const d = new Date(session.startedAt);
+  const estimating = caloriesPending === session.id;
+
+  const runEstimate = async () => {
+    const updated = await estimateCalories(session);
+    if (updated) onUpdated(updated);
+  };
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
@@ -41,17 +47,57 @@ function SessionDetail({ session, onClose, onDelete }: { session: Session; onClo
             <View style={{ flex: 1 }}><Stat t={t} label="TIME" value={fmtDur(session.durationSec)} /></View>
           </View>
 
+          <View style={{ backgroundColor: t.surface, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: t.line2, marginBottom: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: t.limeSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="flame" size={19} color={t.limeInk} sw={1.9} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: t.mut2, letterSpacing: 0.5 }}>CALORIES BURNT</Text>
+                {session.calories != null ? (
+                  <Text style={{ fontSize: 21, fontWeight: '800', color: t.text, marginTop: 2 }}>
+                    {session.calories.toLocaleString()}<Text style={{ fontSize: 12, fontWeight: '700', color: t.mut }}> kcal</Text>
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 13.5, fontWeight: '600', color: t.mut, marginTop: 3 }}>
+                    {estimating ? 'Estimating…' : 'Not estimated yet'}
+                  </Text>
+                )}
+              </View>
+              {estimating
+                ? <ActivityIndicator color={t.orange} />
+                : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={session.calories != null ? 'Re-estimate calories' : 'Estimate calories'}
+                    onPress={runEstimate}
+                    style={{ minHeight: 44, minWidth: 44, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elev }}>
+                    <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.text }}>{session.calories != null ? 'Redo' : 'Estimate'}</Text>
+                  </Pressable>
+                )}
+            </View>
+            {!!session.caloriesSummary && (
+              <Text style={{ fontSize: 13, fontWeight: '600', color: t.mut, lineHeight: 19, marginTop: 10 }}>{session.caloriesSummary}</Text>
+            )}
+          </View>
+
           <View style={{ gap: 11 }}>
             {session.exercises.map((ex, i) => {
               const top = ex.sets.length ? ex.sets.reduce((a: any, x: any) => x.kg > a.kg ? x : a, ex.sets[0]) : null;
               return (
                 <View key={i} style={{ backgroundColor: t.surface, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: t.line2 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: t.text }}>{ex.name}</Text>
-                    {top && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: t.limeSoft, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 8 }}>
-                      <Icon name="star" size={10} color={t.limeInk} sw={0} fill="solid" />
-                      <Text style={{ fontSize: 12, fontWeight: '800', color: t.limeInk }}>{fmt.w(top.kg)} {fmt.wlabel}</Text>
-                    </View>}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
+                    <Text style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: '800', color: t.text }}>{ex.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      {ex.calories != null && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: t.elev, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 8 }}>
+                        <Icon name="flame" size={11} color={t.mut} sw={1.8} />
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: t.mut }}>{Math.round(ex.calories)} kcal</Text>
+                      </View>}
+                      {top && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: t.limeSoft, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 8 }}>
+                        <Icon name="star" size={10} color={t.limeInk} sw={0} fill="solid" />
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: t.limeInk }}>{fmt.w(top.kg)} {fmt.wlabel}</Text>
+                      </View>}
+                    </View>
                   </View>
                   <View style={{ flexDirection: 'row', paddingHorizontal: 2, paddingBottom: 6 }}>
                     <View style={{ width: 30 }}><Text style={{ fontSize: 10.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.5 }}>SET</Text></View>
@@ -171,10 +217,16 @@ export function HistoryScreen() {
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={{ fontSize: 16.5, fontWeight: '800', color: t.text }}>{s.routineName}</Text>
-                      <View style={{ flexDirection: 'row', gap: 11, marginTop: 4 }}>
+                      <View style={{ flexDirection: 'row', gap: 11, marginTop: 4, alignItems: 'center' }}>
                         <Text style={{ fontSize: 12.5, color: t.mut, fontWeight: '700' }}>{s.exercises.length} lifts</Text>
                         <Text style={{ fontSize: 12.5, color: t.mut, fontWeight: '700' }}>{sets} sets</Text>
                         <Text style={{ fontSize: 12.5, color: t.mut, fontWeight: '700' }}>{fmtDur(s.durationSec)}</Text>
+                        {s.calories != null && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                            <Icon name="flame" size={11} color={t.limeInk} sw={1.8} />
+                            <Text style={{ fontSize: 12.5, color: t.limeInk, fontWeight: '800' }}>{Math.round(s.calories)}</Text>
+                          </View>
+                        )}
                       </View>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
@@ -204,6 +256,10 @@ export function HistoryScreen() {
           session={detail}
           onClose={() => openDetail(null)}
           onDelete={(id) => { deleteSession(id); openDetail(null); }}
+          onUpdated={(s) => setGroups(prev => prev.map(g => ({
+            ...g,
+            items: g.items.map(x => (x.id === s.id ? s : x)),
+          })))}
         />
       )}
     </>

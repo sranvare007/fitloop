@@ -21,6 +21,7 @@ export type SessionRow = {
   id: string; routine_id: string | null; routine_name: string;
   started_at: number; ended_at: number; duration_sec: number;
   notes: string; volume: number;
+  calories: number | null; calories_summary: string | null;
 };
 
 let _db: SQLite.SQLiteDatabase | null = null;
@@ -57,14 +58,16 @@ export async function initDb(): Promise<void> {
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
-      id           TEXT PRIMARY KEY,
-      routine_id   TEXT,
-      routine_name TEXT NOT NULL,
-      started_at   INTEGER NOT NULL,
-      ended_at     INTEGER NOT NULL,
-      duration_sec INTEGER NOT NULL,
-      notes        TEXT NOT NULL DEFAULT '',
-      volume       REAL NOT NULL DEFAULT 0
+      id               TEXT PRIMARY KEY,
+      routine_id       TEXT,
+      routine_name     TEXT NOT NULL,
+      started_at       INTEGER NOT NULL,
+      ended_at         INTEGER NOT NULL,
+      duration_sec     INTEGER NOT NULL,
+      notes            TEXT NOT NULL DEFAULT '',
+      volume           REAL NOT NULL DEFAULT 0,
+      calories         REAL,
+      calories_summary TEXT NOT NULL DEFAULT ''
     );
 
     CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at DESC);
@@ -73,7 +76,8 @@ export async function initDb(): Promise<void> {
       id         TEXT PRIMARY KEY,
       session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
       name       TEXT NOT NULL,
-      position   INTEGER NOT NULL
+      position   INTEGER NOT NULL,
+      calories   REAL
     );
 
     CREATE TABLE IF NOT EXISTS exercise_sets (
@@ -138,6 +142,19 @@ export async function initDb(): Promise<void> {
   }
   if (!esColumns.some(c => c.name === 'note')) {
     await d.execAsync("ALTER TABLE exercise_sets ADD COLUMN note TEXT NOT NULL DEFAULT ''");
+  }
+
+  // Migrate: calories columns, added with the backend calorie estimator.
+  const sColumns = await d.getAllAsync<{ name: string }>('PRAGMA table_info(sessions)');
+  if (!sColumns.some(c => c.name === 'calories')) {
+    await d.execAsync('ALTER TABLE sessions ADD COLUMN calories REAL');
+  }
+  if (!sColumns.some(c => c.name === 'calories_summary')) {
+    await d.execAsync("ALTER TABLE sessions ADD COLUMN calories_summary TEXT NOT NULL DEFAULT ''");
+  }
+  const sexColumns = await d.getAllAsync<{ name: string }>('PRAGMA table_info(session_exercises)');
+  if (!sexColumns.some(c => c.name === 'calories')) {
+    await d.execAsync('ALTER TABLE session_exercises ADD COLUMN calories REAL');
   }
 }
 
@@ -241,16 +258,17 @@ export async function saveSession(s: Session): Promise<void> {
   await d.withTransactionAsync(async () => {
     await d.runAsync(
       `INSERT OR REPLACE INTO sessions
-        (id, routine_id, routine_name, started_at, ended_at, duration_sec, notes, volume)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [s.id, s.routineId ?? null, s.routineName, s.startedAt, s.endedAt, s.durationSec, s.notes, s.volume]
+        (id, routine_id, routine_name, started_at, ended_at, duration_sec, notes, volume, calories, calories_summary)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [s.id, s.routineId ?? null, s.routineName, s.startedAt, s.endedAt, s.durationSec, s.notes, s.volume,
+       s.calories ?? null, s.caloriesSummary ?? '']
     );
     for (let ei = 0; ei < s.exercises.length; ei++) {
       const ex = s.exercises[ei];
       const sexId = ex.id || uid();
       await d.runAsync(
-        'INSERT INTO session_exercises (id, session_id, name, position) VALUES (?, ?, ?, ?)',
-        [sexId, s.id, ex.name, ei]
+        'INSERT INTO session_exercises (id, session_id, name, position, calories) VALUES (?, ?, ?, ?, ?)',
+        [sexId, s.id, ex.name, ei, ex.calories ?? null]
       );
       for (let si = 0; si < ex.sets.length; si++) {
         const set = ex.sets[si];
@@ -261,6 +279,55 @@ export async function saveSession(s: Session): Promise<void> {
       }
     }
   });
+}
+
+/**
+ * Attach a calorie estimate to an already-saved session. Per-exercise rows are
+ * matched by their `session_exercises.id`, so an exercise the estimator did not
+ * cover simply keeps a null.
+ */
+export async function saveSessionCaloriesDb(
+  sessionId: string,
+  totalCalories: number,
+  summary: string,
+  perExercise: { id: string; calories: number }[],
+): Promise<void> {
+  const d = await db();
+  await d.withTransactionAsync(async () => {
+    await d.runAsync(
+      'UPDATE sessions SET calories = ?, calories_summary = ? WHERE id = ?',
+      [totalCalories, summary, sessionId]
+    );
+    for (const ex of perExercise) {
+      await d.runAsync(
+        'UPDATE session_exercises SET calories = ? WHERE id = ? AND session_id = ?',
+        [ex.calories, ex.id, sessionId]
+      );
+    }
+  });
+}
+
+/** How many saved sessions still have no calorie estimate. */
+export async function countSessionsMissingCalories(): Promise<number> {
+  const d = await db();
+  const row = await d.getFirstAsync<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM sessions WHERE calories IS NULL'
+  );
+  return row?.n ?? 0;
+}
+
+/**
+ * Sessions still missing a calorie estimate, newest-first. Successful estimates
+ * drop out of this query, so a backfill walking it in order only needs to skip
+ * past the ones it has already failed on.
+ */
+export async function loadSessionsMissingCalories(limit: number, offset = 0): Promise<Session[]> {
+  const d = await db();
+  const rows = await d.getAllAsync<SessionRow>(
+    'SELECT * FROM sessions WHERE calories IS NULL ORDER BY started_at DESC LIMIT ? OFFSET ?',
+    [limit, offset]
+  );
+  return Promise.all(rows.map(r => hydrateSession(d, r)));
 }
 
 /** Delete a session and all its exercises/sets (CASCADE). */
@@ -491,15 +558,16 @@ export async function importAllData(data: FitLoopExport): Promise<ImportResult> 
       const exists = await d.getFirstAsync<{ id: string }>('SELECT id FROM sessions WHERE id = ?', [s.id]);
       if (!exists) {
         await d.runAsync(
-          `INSERT INTO sessions (id, routine_id, routine_name, started_at, ended_at, duration_sec, notes, volume) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [s.id, s.routineId ?? null, s.routineName, s.startedAt, s.endedAt, s.durationSec, s.notes, s.volume]
+          `INSERT INTO sessions (id, routine_id, routine_name, started_at, ended_at, duration_sec, notes, volume, calories, calories_summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [s.id, s.routineId ?? null, s.routineName, s.startedAt, s.endedAt, s.durationSec, s.notes, s.volume,
+           s.calories ?? null, s.caloriesSummary ?? '']
         );
         for (let ei = 0; ei < s.exercises.length; ei++) {
           const ex = s.exercises[ei];
           const sexId = ex.id || uid();
           await d.runAsync(
-            'INSERT INTO session_exercises (id, session_id, name, position) VALUES (?, ?, ?, ?)',
-            [sexId, s.id, ex.name, ei]
+            'INSERT INTO session_exercises (id, session_id, name, position, calories) VALUES (?, ?, ?, ?, ?)',
+            [sexId, s.id, ex.name, ei, ex.calories ?? null]
           );
           for (let si = 0; si < ex.sets.length; si++) {
             const set = ex.sets[si];
@@ -529,8 +597,8 @@ export async function importAllData(data: FitLoopExport): Promise<ImportResult> 
 
 // ── Internal: hydrate a session row with exercises + sets ─────
 async function hydrateSession(d: SQLite.SQLiteDatabase, row: SessionRow): Promise<Session> {
-  const exRows = await d.getAllAsync<{ id: string; name: string; position: number }>(
-    'SELECT id, name, position FROM session_exercises WHERE session_id = ? ORDER BY position ASC',
+  const exRows = await d.getAllAsync<{ id: string; name: string; position: number; calories: number | null }>(
+    'SELECT id, name, position, calories FROM session_exercises WHERE session_id = ? ORDER BY position ASC',
     [row.id]
   );
   const exercises: SessionExercise[] = [];
@@ -539,7 +607,7 @@ async function hydrateSession(d: SQLite.SQLiteDatabase, row: SessionRow): Promis
       'SELECT reps, kg, note FROM exercise_sets WHERE session_exercise_id = ? ORDER BY rowid ASC',
       [ex.id]
     );
-    exercises.push({ id: ex.id, name: ex.name, sets });
+    exercises.push({ id: ex.id, name: ex.name, sets, calories: ex.calories });
   }
   return {
     id: row.id,
@@ -550,6 +618,8 @@ async function hydrateSession(d: SQLite.SQLiteDatabase, row: SessionRow): Promis
     durationSec: row.duration_sec,
     notes: row.notes,
     volume: row.volume,
+    calories: row.calories,
+    caloriesSummary: row.calories_summary ?? '',
     exercises,
   };
 }

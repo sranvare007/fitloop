@@ -1,11 +1,19 @@
 /** `note` is a free-text comment on the set (e.g. "used 5kg plate"); '' when none. */
 export interface SetEntry { reps: number; kg: number; note: string }
-export interface SessionExercise { id: string; name: string; sets: SetEntry[] }
+export interface SessionExercise {
+  id: string; name: string; sets: SetEntry[];
+  /** kcal burnt on this exercise, estimated by the backend; null until estimated. */
+  calories?: number | null;
+}
 export interface Routine { id: string; name: string; days: number[]; color: string; exercises: string[] }
 export interface Session {
   id: string; routineId: string | null; routineName: string;
   startedAt: number; endedAt: number; durationSec: number;
   exercises: SessionExercise[]; volume: number; notes: string;
+  /** Total kcal burnt, estimated by the backend; null until estimated. */
+  calories?: number | null;
+  /** One-line intensity summary that came back with the estimate. */
+  caloriesSummary?: string;
 }
 export interface Measurement { id: string; at: number; weightKg: number; bodyFat: number | null }
 export type PhysiquePose = 'front' | 'back' | 'side' | 'legs' | 'other';
