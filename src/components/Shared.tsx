@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text as RNText, TextInput as RNTextInput, Pressable, StyleSheet, Modal,
-  TouchableWithoutFeedback, ScrollView, ViewStyle, ActivityIndicator,
+  ScrollView, ViewStyle, ActivityIndicator,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -157,6 +157,7 @@ interface SheetProps {
   /** Pinned above the scrollable body, so it stays visible while the content scrolls. */
   header?: React.ReactNode;
 }
+const SHEET_PAD = 18;
 export function Sheet({ open, onClose, t, children, title, height, header }: SheetProps) {
   const insets = useSafeAreaInsets();
   return (
@@ -169,23 +170,26 @@ export function Sheet({ open, onClose, t, children, title, height, header }: She
           style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' }}
           onPress={onClose}
         />
-        <TouchableWithoutFeedback onPress={() => {}}>
-          <View style={{
-            backgroundColor: t.surface,
-            borderTopLeftRadius: 28, borderTopRightRadius: 28,
-            paddingHorizontal: 18, paddingTop: 10,
-            paddingBottom: insets.bottom + 20,
-            maxHeight: typeof height === 'number' ? height : '85%',
-            borderTopWidth: 1, borderTopColor: t.line,
-          }}>
-            <View style={{ width: 40, height: 5, borderRadius: 99, backgroundColor: t.elev2, alignSelf: 'center', marginBottom: 14 }} />
-            {title && <AppText style={{ fontSize: 19, fontWeight: '800', color: t.text, marginBottom: 14, letterSpacing: -0.3 }}>{title}</AppText>}
-            {header}
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {children}
-            </ScrollView>
-          </View>
-        </TouchableWithoutFeedback>
+        <View style={{
+          backgroundColor: t.surface,
+          borderTopLeftRadius: 28, borderTopRightRadius: 28,
+          paddingTop: 10,
+          maxHeight: typeof height === 'number' ? height : '85%',
+          borderTopWidth: 1, borderTopColor: t.line,
+          overflow: 'hidden',
+        }}>
+          <View style={{ width: 40, height: 5, borderRadius: 99, backgroundColor: t.elev2, alignSelf: 'center', marginBottom: 14 }} />
+          {title && <AppText style={{ fontSize: 19, fontWeight: '800', color: t.text, marginBottom: 14, marginHorizontal: SHEET_PAD, letterSpacing: -0.3 }}>{title}</AppText>}
+          {header ? <View style={{ paddingHorizontal: SHEET_PAD }}>{header}</View> : null}
+          {/* Padding lives on the scroll content, not the sheet, so a drag that starts in the side gutters or the bottom safe-area strip still scrolls. */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingHorizontal: SHEET_PAD, paddingBottom: insets.bottom + 20 }}
+          >
+            {children}
+          </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );

@@ -863,7 +863,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
         <Text style={{ fontSize: 13, color: t.mut, fontWeight: '600', marginTop: -8, marginBottom: 14, lineHeight: 20 }}>
           Anything worth remembering about this set — grip, machine setting, how it felt.
         </Text>
-        <TextInput autoFocus multiline value={noteDraft} onChangeText={v => setNoteDraft(v.slice(0, 200))}
+        <TextInput autoFocus multiline scrollEnabled={false} value={noteDraft} onChangeText={v => setNoteDraft(v.slice(0, 200))}
           placeholder="e.g. Used 5kg plate" placeholderTextColor={t.mut2}
           accessibilityLabel="Set comment"
           style={{ minHeight: 90, padding: 13, borderRadius: 14, borderWidth: 1.5, borderColor: t.line, backgroundColor: t.surface2, color: t.text, fontSize: 15, fontWeight: '500', textAlignVertical: 'top' }} />
@@ -1014,7 +1014,7 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
           </Text>
         )}
         <Text style={{ fontSize: 12.5, fontWeight: '800', color: t.mut2, letterSpacing: 0.4, marginBottom: 7 }}>SESSION NOTES</Text>
-        <TextInput value={notes} onChangeText={v => setNotes(v.slice(0, 300))} placeholder="How did it feel? (optional)" placeholderTextColor={t.mut2} multiline
+        <TextInput value={notes} onChangeText={v => setNotes(v.slice(0, 300))} placeholder="How did it feel? (optional)" placeholderTextColor={t.mut2} multiline scrollEnabled={false}
           style={{ minHeight: 70, padding: 13, borderRadius: 14, borderWidth: 1.5, borderColor: t.line, backgroundColor: t.surface2, color: t.text, fontSize: 15, fontWeight: '500', marginBottom: 16, textAlignVertical: 'top' }} />
         <Pressable accessibilityRole="switch" accessibilityState={{ checked: addPhoto }} accessibilityLabel="Add a progress photo after saving"
           onPress={() => setAddPhoto(v => !v)}
