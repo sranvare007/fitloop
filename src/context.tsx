@@ -3,7 +3,7 @@ import { useColorScheme } from 'react-native';
 import { makeTheme, Theme } from './theme';
 import {
   Profile, Routine, Session, Measurement, FmtHelper, Override, GymSchedule,
-  PhysiquePhoto, PhysiquePose,
+  PhysiquePhoto, PhysiquePose, BodyLog, BodyPart,
   makeFmt, sessionVolume, uid, LB, DAY_MS, SEED_PB,
 } from './data';
 import { persistPhoto, photoUri, deletePhotoFile } from './photos';
@@ -26,6 +26,7 @@ import {
   loadRecentSessions, loadSessionPage, totalSessionCount,
   thisWeekSessionCount, thisWeekSessionDays,
   addMeasurementDb, loadMeasurements,
+  loadBodyLogs, saveBodyLogDb, deleteBodyLogDb,
   loadPhysiquePhotos, addPhysiquePhotoDb, deletePhysiquePhotoDb,
   loadStrengthSeries, loadAllExerciseNames,
   exportAllData, importAllData, FitLoopExport,
@@ -71,6 +72,8 @@ export interface AppContextValue {
   lastMeasurement: Measurement | null;
   /** All physique progress photos, newest-first. */
   physiquePhotos: PhysiquePhoto[];
+  /** All body-measurement logs, oldest-first. Values are in cm. */
+  bodyLogs: BodyLog[];
 
   // Async data loaders for screens that need more
   loadMoreSessions: (limit: number, offset: number) => Promise<Session[]>;
@@ -118,6 +121,12 @@ export interface AppContextValue {
   openDetail: (s: Session | null) => void;
   deleteSession: (id: string) => void;
   addMeasurement: (wDisp: number, bf: number | null) => void;
+  /**
+   * Create (no `id`) or overwrite a body-measurement log. `values` are in the
+   * current display length unit; blank parts are simply omitted.
+   */
+  saveBodyLog: (entry: { id?: string; at?: number; values: Partial<Record<BodyPart, number>> }) => Promise<void>;
+  deleteBodyLog: (id: string) => Promise<void>;
   addPhysiquePhotos: (shots: { uri: string; pose: PhysiquePose; weightKg?: number | null }[], note?: string) => Promise<void>;
   deletePhysiquePhoto: (id: string) => Promise<void>;
   physiqueCameraOn: boolean;
@@ -139,7 +148,7 @@ export interface AppContextValue {
   clearData: () => void;
   updateProfile: (p: Profile) => void;
   exportData: () => Promise<void>;
-  importData: () => Promise<{ routines: number; sessions: number; measurements: number } | null>;
+  importData: () => Promise<{ routines: number; sessions: number; measurements: number; bodyLogs: number } | null>;
   toast: (cfg: ToastConfig | null) => void;
 
   // Auth / cloud sync
@@ -191,6 +200,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [doneDays, setDoneDays] = useState<Set<number>>(new Set());
   const [lastMeasurement, setLastMeasurement] = useState<Measurement | null>(null);
   const [physiquePhotos, setPhysiquePhotos] = useState<PhysiquePhoto[]>([]);
+  const [bodyLogs, setBodyLogs] = useState<BodyLog[]>([]);
   const [personalRecords, setPersonalRecords] = useState<Record<string, SetBest[]>>({});
 
   // Auth / cloud sync
@@ -276,6 +286,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLastMeasurement(measurements.length ? measurements[measurements.length - 1] : null);
 
     setPhysiquePhotos(await loadPhysiquePhotos(0));
+    setBodyLogs(await loadBodyLogs(0));
   }
 
   // ── Auth / cloud sync ─────────────────────────────────────
@@ -484,6 +495,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     doneDays,
     lastMeasurement,
     physiquePhotos,
+    bodyLogs,
 
     // Async data loaders
     loadMoreSessions: (limit, offset) => loadSessionPage(limit, offset),
@@ -657,6 +669,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast({ icon: 'check', msg: 'Measurement logged' });
     },
 
+    saveBodyLog: async ({ id, at, values }) => {
+      const cmValues: Partial<Record<BodyPart, number>> = {};
+      for (const [part, v] of Object.entries(values) as [BodyPart, number | undefined][]) {
+        if (v != null && v > 0) cmValues[part] = fmt.toCm(v);
+      }
+      if (!Object.keys(cmValues).length) return;
+      const log: BodyLog = { id: id ?? uid(), at: at ?? Date.now(), values: cmValues };
+      await saveBodyLogDb(log);
+      setBodyLogs(prev => [...prev.filter(l => l.id !== log.id), log].sort((a, b) => a.at - b.at));
+      toast({ icon: 'check', msg: id ? 'Measurements updated' : 'Measurements logged' });
+    },
+    deleteBodyLog: async (id) => {
+      await deleteBodyLogDb(id);
+      setBodyLogs(prev => prev.filter(l => l.id !== id));
+      toast({ icon: 'trash', tone: 'danger', msg: 'Measurements deleted' });
+    },
+
     addPhysiquePhotos: async (shots, note = '') => {
       if (!shots.length) return;
       const at = Date.now();
@@ -737,10 +766,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await database.runAsync('DELETE FROM measurements');
         await database.runAsync('DELETE FROM physique_photos');
         await database.runAsync('DELETE FROM personal_records');
+        await database.runAsync('DELETE FROM body_log_values');
+        await database.runAsync('DELETE FROM body_logs');
       });
       for (const p of physiquePhotos) deletePhotoFile(p.file);
       setRoutines([]); setRecentHistory([]); setTotalSessions(0); setWeekCount(0);
-      setDoneDays(new Set()); setLastMeasurement(null); setPhysiquePhotos([]); setPersonalRecords({});
+      setDoneDays(new Set()); setLastMeasurement(null); setPhysiquePhotos([]); setPersonalRecords({}); setBodyLogs([]);
       toast({ icon: 'trash', tone: 'danger', msg: 'All data cleared' });
       setActiveTab('home');
     },

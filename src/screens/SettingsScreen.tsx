@@ -122,7 +122,7 @@ export function SettingsScreen() {
     const result = await importData();
     setImporting(false);
     if (result) {
-      const total = result.routines + result.sessions + result.measurements;
+      const total = result.routines + result.sessions + result.measurements + result.bodyLogs;
       toast({ icon: 'check', msg: total > 0 ? `Imported ${total} item${total === 1 ? '' : 's'}` : 'Nothing new to import' });
     }
   }

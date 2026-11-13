@@ -16,6 +16,11 @@ export interface Session {
   caloriesSummary?: string;
 }
 export interface Measurement { id: string; at: number; weightKg: number; bodyFat: number | null }
+export type BodyPart =
+  | 'neck' | 'shoulders' | 'chest' | 'biceps' | 'forearms'
+  | 'waist' | 'hips' | 'thighs' | 'calves';
+/** One measuring session. Circumferences are always stored in cm; a part left blank is absent. */
+export interface BodyLog { id: string; at: number; values: Partial<Record<BodyPart, number>> }
 export type PhysiquePose = 'front' | 'back' | 'side' | 'legs' | 'other';
 export interface PhysiquePhoto {
   id: string;
@@ -44,6 +49,11 @@ export interface FmtHelper {
   step: number;
   w: (kg: number) => number;
   wStr: (kg: number) => string;
+  /** Length unit follows the weight unit: metric → cm, imperial → in. */
+  lunit: 'cm' | 'in';
+  l: (cm: number) => number;
+  /** Convert a length typed in the display unit back to cm for storage. */
+  toCm: (v: number) => number;
 }
 
 export const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -52,6 +62,7 @@ import * as Crypto from 'expo-crypto';
 export const uid = (): string => Crypto.randomUUID();
 export const DAY_MS = 86400000;
 export const LB = 2.20462;
+export const CM_PER_IN = 2.54;
 export const ROUTINE_COLORS = ['#FF5A2C', '#C6FF3A', '#5B8CFF', '#FF9F1C', '#19E0A0', '#C77DFF'];
 
 export const PHYSIQUE_POSES: { key: PhysiquePose; label: string }[] = [
@@ -61,6 +72,18 @@ export const PHYSIQUE_POSES: { key: PhysiquePose; label: string }[] = [
   { key: 'legs', label: 'Legs' },
   { key: 'other', label: 'Other' },
 ];
+export const BODY_PARTS: { key: BodyPart; label: string; tip: string }[] = [
+  { key: 'neck', label: 'Neck', tip: 'Wrap the tape just below the Adam\'s apple, keeping it level. Stand tall and look straight ahead.' },
+  { key: 'shoulders', label: 'Shoulders', tip: 'Arms relaxed at your sides — go around the widest point of the shoulders, over the deltoids.' },
+  { key: 'chest', label: 'Chest', tip: 'Under the armpits and across the nipples, tape level all the way round. Measure after a normal exhale.' },
+  { key: 'biceps', label: 'Biceps', tip: 'Flex the arm at 90° and measure around the peak of the bicep. Use the same arm every time.' },
+  { key: 'forearms', label: 'Forearms', tip: 'Arm straight, hand relaxed — measure the thickest part, just below the elbow.' },
+  { key: 'waist', label: 'Waist', tip: 'Around the navel, standing relaxed. Don\'t suck in — measure after a normal exhale.' },
+  { key: 'hips', label: 'Hips', tip: 'Feet together, measure around the widest part of the glutes, keeping the tape level.' },
+  { key: 'thighs', label: 'Thighs', tip: 'Standing with weight on both legs, measure the thickest part of the upper thigh, just below the glutes.' },
+  { key: 'calves', label: 'Calves', tip: 'Standing, weight spread evenly — measure around the widest part of the calf.' },
+];
+
 export function poseLabel(k: string): string {
   return PHYSIQUE_POSES.find(p => p.key === k)?.label ?? 'Photo';
 }
@@ -92,6 +115,9 @@ export function makeFmt(unit: 'kg' | 'lbs'): FmtHelper {
     step: unit === 'kg' ? 2.5 : 5,
     w: (kg: number) => unit === 'kg' ? kg : Math.round(kg * LB),
     wStr: (kg: number) => (unit === 'kg' ? +kg.toFixed(1) : Math.round(kg * LB)) + '',
+    lunit: unit === 'kg' ? 'cm' : 'in',
+    l: (cm: number) => +(unit === 'kg' ? cm : cm / CM_PER_IN).toFixed(1),
+    toCm: (v: number) => +(unit === 'kg' ? v : v * CM_PER_IN).toFixed(2),
   };
 }
 

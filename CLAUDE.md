@@ -148,6 +148,7 @@ Session    — id, routineId, routineName, startedAt, endedAt, durationSec, exer
 SessionExercise — id, name, sets (SetEntry[])
 SetEntry   — reps, kg  (always stored in kg regardless of display unit)
 Measurement — id, at, weightKg, bodyFat (number | null)
+BodyLog    — id, at, values (Partial<Record<BodyPart, number>>, always cm)
 Profile    — name, age, gender, heightCm, weightKg
 ```
 
@@ -168,6 +169,8 @@ Rules:
 | `session_exercises` | `id` TEXT | Exercises logged per session; CASCADE delete |
 | `exercise_sets` | `id` TEXT | Individual sets (reps × kg); CASCADE delete |
 | `measurements` | `id` TEXT | Body weight + body fat entries; indexed on `at` |
+| `body_logs` | `id` TEXT | Body-measurement sessions; indexed on `at` |
+| `body_log_values` | `(log_id, part)` | Circumference in cm per body part; CASCADE delete |
 
 ---
 
@@ -213,6 +216,7 @@ All destructive deletes must show a confirmation before calling the context acti
 - Display unit is `kg` or `lbs`, stored in settings and exposed as `fmt` from `useApp()`.
 - Never store lbs in the DB — convert to kg before writing.
 - `fmt.w(kg)` → display number; `fmt.wStr(kg)` → display string with unit label.
+- Body circumferences are stored in **cm**; the display length unit follows the weight unit (kg → cm, lbs → in). Use `fmt.l(cm)` to display and `fmt.toCm(v)` before writing.
 - The `LB = 2.20462` constant is in `src/data.ts`.
 
 ---

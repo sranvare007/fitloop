@@ -8,12 +8,14 @@
  *   session_exercises – exercises logged in a session
  *   exercise_sets     – individual sets (reps × kg) + an optional free-text note
  *   measurements      – body weight + body fat entries
+ *   body_logs         – body-measurement sessions (one row per time the user measured)
+ *   body_log_values   – circumference in cm per body part within a body log
  *   personal_records  – user-set personal-record sets (kg × reps) per exercise, one row per set position
  */
 import * as SQLite from 'expo-sqlite';
 import {
   Routine, Session, SessionExercise, Measurement, Profile,
-  Override, GymSchedule, PhysiquePhoto, SEED, uid, sessionVolume, startOfWeekMs,
+  Override, GymSchedule, PhysiquePhoto, BodyLog, BodyPart, SEED, uid, sessionVolume, startOfWeekMs,
 } from './data';
 import { photoUri } from './photos';
 
@@ -96,6 +98,20 @@ export async function initDb(): Promise<void> {
     );
 
     CREATE INDEX IF NOT EXISTS idx_measurements_at ON measurements(at DESC);
+
+    CREATE TABLE IF NOT EXISTS body_logs (
+      id TEXT PRIMARY KEY,
+      at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_body_logs_at ON body_logs(at DESC);
+
+    CREATE TABLE IF NOT EXISTS body_log_values (
+      log_id TEXT NOT NULL REFERENCES body_logs(id) ON DELETE CASCADE,
+      part   TEXT NOT NULL,
+      cm     REAL NOT NULL,
+      PRIMARY KEY (log_id, part)
+    );
 
     CREATE TABLE IF NOT EXISTS physique_photos (
       id        TEXT PRIMARY KEY,
@@ -454,6 +470,55 @@ export async function deleteMeasurementDb(id: string): Promise<void> {
   await d.runAsync('DELETE FROM measurements WHERE id = ?', [id]);
 }
 
+// ── Body measurements ─────────────────────────────────────────
+type BodyLogValueRow = { log_id: string; at: number; part: string; cm: number };
+
+/** Body logs within a time range, oldest-first, each with its per-part values. */
+export async function loadBodyLogs(cutoffMs = 0): Promise<BodyLog[]> {
+  const d = await db();
+  const rows = await d.getAllAsync<BodyLogValueRow>(
+    `SELECT l.id AS log_id, l.at, v.part, v.cm
+     FROM body_logs l
+     JOIN body_log_values v ON v.log_id = l.id
+     WHERE l.at >= ?
+     ORDER BY l.at ASC`,
+    [cutoffMs]
+  );
+  const byId = new Map<string, BodyLog>();
+  for (const r of rows) {
+    let log = byId.get(r.log_id);
+    if (!log) { log = { id: r.log_id, at: r.at, values: {} }; byId.set(r.log_id, log); }
+    log.values[r.part as BodyPart] = r.cm;
+  }
+  return [...byId.values()];
+}
+
+/** Insert or replace a body log and all of its values. */
+export async function saveBodyLogDb(log: BodyLog): Promise<void> {
+  const d = await db();
+  await d.withTransactionAsync(async () => {
+    // Upsert, not INSERT OR REPLACE: REPLACE deletes the parent row, and whether
+    // that cascades depends on SQLite trigger settings — keep the values explicit.
+    await d.runAsync(
+      'INSERT INTO body_logs (id, at) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET at = excluded.at',
+      [log.id, log.at]
+    );
+    await d.runAsync('DELETE FROM body_log_values WHERE log_id = ?', [log.id]);
+    for (const [part, cm] of Object.entries(log.values)) {
+      if (cm == null) continue;
+      await d.runAsync(
+        'INSERT INTO body_log_values (log_id, part, cm) VALUES (?, ?, ?)',
+        [log.id, part, cm]
+      );
+    }
+  });
+}
+
+export async function deleteBodyLogDb(id: string): Promise<void> {
+  const d = await db();
+  await d.runAsync('DELETE FROM body_logs WHERE id = ?', [id]);
+}
+
 // ── Physique photos ───────────────────────────────────────────
 type PhysiquePhotoRow = { id: string; at: number; file: string; pose: string; note: string; weight_kg: number | null };
 
@@ -521,6 +586,8 @@ export type FitLoopExport = {
   routines: Routine[];
   sessions: Session[];
   measurements: Measurement[];
+  /** Absent in backups made before body measurements existed. */
+  bodyLogs?: BodyLog[];
 };
 
 export async function exportAllData(profile: Profile): Promise<FitLoopExport> {
@@ -531,14 +598,15 @@ export async function exportAllData(profile: Profile): Promise<FitLoopExport> {
   );
   const sessions = await Promise.all(sessionRows.map(r => hydrateSession(d, r)));
   const measurements = await loadMeasurements(0);
-  return { version: 1, exportedAt: Date.now(), profile, routines, sessions, measurements };
+  const bodyLogs = await loadBodyLogs(0);
+  return { version: 1, exportedAt: Date.now(), profile, routines, sessions, measurements, bodyLogs };
 }
 
-export type ImportResult = { routines: number; sessions: number; measurements: number };
+export type ImportResult = { routines: number; sessions: number; measurements: number; bodyLogs: number };
 
 export async function importAllData(data: FitLoopExport): Promise<ImportResult> {
   const d = await db();
-  let routines = 0, sessions = 0, measurements = 0;
+  let routines = 0, sessions = 0, measurements = 0, bodyLogs = 0;
   await d.withTransactionAsync(async () => {
     for (const r of data.routines) {
       const exists = await d.getFirstAsync<{ id: string }>('SELECT id FROM routines WHERE id = ?', [r.id]);
@@ -592,8 +660,19 @@ export async function importAllData(data: FitLoopExport): Promise<ImportResult> 
         measurements++;
       }
     }
+    for (const log of data.bodyLogs ?? []) {
+      const exists = await d.getFirstAsync<{ id: string }>('SELECT id FROM body_logs WHERE id = ?', [log.id]);
+      if (!exists) {
+        await d.runAsync('INSERT INTO body_logs (id, at) VALUES (?, ?)', [log.id, log.at]);
+        for (const [part, cm] of Object.entries(log.values)) {
+          if (cm == null) continue;
+          await d.runAsync('INSERT INTO body_log_values (log_id, part, cm) VALUES (?, ?, ?)', [log.id, part, cm]);
+        }
+        bodyLogs++;
+      }
+    }
   });
-  return { routines, sessions, measurements };
+  return { routines, sessions, measurements, bodyLogs };
 }
 
 

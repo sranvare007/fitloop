@@ -34,7 +34,7 @@ export function AppText({ style, ...props }: React.ComponentProps<typeof RNText>
   );
 }
 
-export function AppTextInput({ style, ...props }: React.ComponentProps<typeof RNTextInput>) {
+export function AppTextInput({ style, ...props }: React.ComponentProps<typeof RNTextInput> & { ref?: React.Ref<RNTextInput> }) {
   const flat = StyleSheet.flatten(style) ?? {};
   const { fontWeight, ...restFlat } = flat as any;
   return (
@@ -154,8 +154,10 @@ interface SheetProps {
   children: React.ReactNode;
   title?: string;
   height?: number | string;
+  /** Pinned above the scrollable body, so it stays visible while the content scrolls. */
+  header?: React.ReactNode;
 }
-export function Sheet({ open, onClose, t, children, title, height }: SheetProps) {
+export function Sheet({ open, onClose, t, children, title, height, header }: SheetProps) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
@@ -178,6 +180,7 @@ export function Sheet({ open, onClose, t, children, title, height }: SheetProps)
           }}>
             <View style={{ width: 40, height: 5, borderRadius: 99, backgroundColor: t.elev2, alignSelf: 'center', marginBottom: 14 }} />
             {title && <AppText style={{ fontSize: 19, fontWeight: '800', color: t.text, marginBottom: 14, letterSpacing: -0.3 }}>{title}</AppText>}
+            {header}
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {children}
             </ScrollView>
