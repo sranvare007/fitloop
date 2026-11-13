@@ -39,9 +39,11 @@ interface Envelope<T> {
   errors?: { field: string; message: string }[];
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+const DEFAULT_TIMEOUT_MS = 15000;
+
+async function request<T>(method: string, path: string, body?: unknown, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let res: Response;
   try {
@@ -93,6 +95,37 @@ export const apiGetMeasurements = (since = 0) => request<Measurement[]>('GET', `
 export const apiSaveMeasurement = (m: Measurement) => request<Measurement>('POST', '/measurements', m);
 export const apiDeleteMeasurement = (id: string) =>
   request<{ id: string }>('DELETE', `/measurements/${encodeURIComponent(id)}`);
+
+// ── Calories ──────────────────────────────────────────────────
+export interface ExerciseCalories {
+  name: string;
+  sets: number;
+  totalReps: number;
+  volumeKg: number;
+  /** Metabolic equivalent the estimate used for this exercise. */
+  met: number;
+  activeMinutes: number;
+  calories: number;
+}
+export interface WorkoutCalories {
+  totalCalories: number;
+  durationSec: number;
+  /** One entry per posted exercise, in the same order. */
+  exercises: ExerciseCalories[];
+  summary: string;
+}
+export interface CaloriesRequestBody {
+  sessionId: string | null;
+  routineName: string;
+  durationSec: number;
+  exercises: { name: string; sets: { reps: number; kg: number }[] }[];
+  profile: { weightKg: number; heightCm: number | null; age: number | null; gender: string | null };
+}
+
+// The estimate goes through an LLM, so it needs a longer leash than a plain CRUD call.
+const CALORIES_TIMEOUT_MS = 45000;
+export const apiWorkoutCalories = (body: CaloriesRequestBody) =>
+  request<WorkoutCalories>('POST', '/calories/workout', body, CALORIES_TIMEOUT_MS);
 
 // ── Settings ──────────────────────────────────────────────────
 export const apiGetSettings = () => request<Record<string, unknown>>('GET', '/settings');

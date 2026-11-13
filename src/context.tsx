@@ -3,7 +3,7 @@ import { useColorScheme } from 'react-native';
 import { makeTheme, Theme } from './theme';
 import {
   Profile, Routine, Session, Measurement, FmtHelper, Override, GymSchedule,
-  PhysiquePhoto, PhysiquePose,
+  PhysiquePhoto, PhysiquePose, BodyLog, BodyPart,
   makeFmt, sessionVolume, uid, LB, DAY_MS, SEED_PB,
 } from './data';
 import { persistPhoto, photoUri, deletePhotoFile } from './photos';
@@ -14,16 +14,19 @@ import {
   apiSaveSession, apiDeleteSession, apiGetSessions,
   apiSaveMeasurement, apiGetMeasurements,
   apiGetSettings, apiSaveSettings,
+  apiWorkoutCalories,
 } from './api';
 import { scheduleGymNotifications, cancelGymNotifications } from './notifications';
 import {
   initDb,
   loadSettings, saveSettings, AppSettings,
   loadRoutines, saveRoutine as dbSaveRoutine, deleteRoutine as dbDeleteRoutine,
-  saveSession as dbSaveSession, deleteSessionDb,
+  saveSession as dbSaveSession, deleteSessionDb, saveSessionCaloriesDb,
+  countSessionsMissingCalories, loadSessionsMissingCalories,
   loadRecentSessions, loadSessionPage, totalSessionCount,
   thisWeekSessionCount, thisWeekSessionDays,
   addMeasurementDb, loadMeasurements,
+  loadBodyLogs, saveBodyLogDb, deleteBodyLogDb,
   loadPhysiquePhotos, addPhysiquePhotoDb, deletePhysiquePhotoDb,
   loadStrengthSeries, loadAllExerciseNames,
   exportAllData, importAllData, FitLoopExport,
@@ -69,6 +72,8 @@ export interface AppContextValue {
   lastMeasurement: Measurement | null;
   /** All physique progress photos, newest-first. */
   physiquePhotos: PhysiquePhoto[];
+  /** All body-measurement logs, oldest-first. Values are in cm. */
+  bodyLogs: BodyLog[];
 
   // Async data loaders for screens that need more
   loadMoreSessions: (limit: number, offset: number) => Promise<Session[]>;
@@ -84,6 +89,21 @@ export interface AppContextValue {
   /** Replace the personal-record sets for an exercise. Each `w` is in the current display unit; an empty list clears them. */
   savePR: (name: string, sets: { reps: number; w: number }[]) => Promise<void>;
 
+  /**
+   * Ask the backend to estimate calories burnt for a saved session, persist the
+   * result and return the updated session. Returns null when it could not run
+   * (signed out, offline, or the estimator rejected the workout).
+   */
+  estimateCalories: (s: Session) => Promise<Session | null>;
+  /** Id of the session currently being estimated, if any. */
+  caloriesPending: string | null;
+  /** Progress of the backfill over pre-existing history, or null when idle. */
+  caloriesBackfill: { done: number; total: number } | null;
+  /** Re-run the backfill over any sessions still missing an estimate. */
+  backfillCalories: () => Promise<void>;
+  /** How many saved sessions still have no calorie estimate. */
+  countMissingCalories: () => Promise<number>;
+
   nav: (tab: string) => void;
   startSession: (routine: Routine | null) => void;
   exitSession: () => void;
@@ -91,7 +111,7 @@ export interface AppContextValue {
   minimizeSession: () => void;
   saveSession: (data: any) => void;
   resumeSession: () => void;
-  updateInProgressSession: (exercises: any[]) => void;
+  updateInProgressSession: (exercises: any[], openIds?: string[]) => void;
   inProgressSession: InProgressSession | null;
   sessionResumeData: InProgressSession | null;
   editRoutine: (r: Routine | null) => void;
@@ -101,6 +121,12 @@ export interface AppContextValue {
   openDetail: (s: Session | null) => void;
   deleteSession: (id: string) => void;
   addMeasurement: (wDisp: number, bf: number | null) => void;
+  /**
+   * Create (no `id`) or overwrite a body-measurement log. `values` are in the
+   * current display length unit; blank parts are simply omitted.
+   */
+  saveBodyLog: (entry: { id?: string; at?: number; values: Partial<Record<BodyPart, number>> }) => Promise<void>;
+  deleteBodyLog: (id: string) => Promise<void>;
   addPhysiquePhotos: (shots: { uri: string; pose: PhysiquePose; weightKg?: number | null }[], note?: string) => Promise<void>;
   deletePhysiquePhoto: (id: string) => Promise<void>;
   physiqueCameraOn: boolean;
@@ -122,7 +148,7 @@ export interface AppContextValue {
   clearData: () => void;
   updateProfile: (p: Profile) => void;
   exportData: () => Promise<void>;
-  importData: () => Promise<{ routines: number; sessions: number; measurements: number } | null>;
+  importData: () => Promise<{ routines: number; sessions: number; measurements: number; bodyLogs: number } | null>;
   toast: (cfg: ToastConfig | null) => void;
 
   // Auth / cloud sync
@@ -150,6 +176,8 @@ export interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 export const useApp = () => useContext(AppContext)!;
 
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false);
 
@@ -172,12 +200,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [doneDays, setDoneDays] = useState<Set<number>>(new Set());
   const [lastMeasurement, setLastMeasurement] = useState<Measurement | null>(null);
   const [physiquePhotos, setPhysiquePhotos] = useState<PhysiquePhoto[]>([]);
+  const [bodyLogs, setBodyLogs] = useState<BodyLog[]>([]);
   const [personalRecords, setPersonalRecords] = useState<Record<string, SetBest[]>>({});
 
   // Auth / cloud sync
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [caloriesPending, setCaloriesPending] = useState<string | null>(null);
+  const [backfill, setBackfill] = useState<{ done: number; total: number } | null>(null);
+  /** Sessions this run could not estimate — skipped so the pass can terminate. */
+  const failedBackfillIds = useRef<Set<string>>(new Set());
 
   // UI / overlay state
   const [activeTab, setActiveTab] = useState('home');
@@ -253,6 +286,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLastMeasurement(measurements.length ? measurements[measurements.length - 1] : null);
 
     setPhysiquePhotos(await loadPhysiquePhotos(0));
+    setBodyLogs(await loadBodyLogs(0));
   }
 
   // ── Auth / cloud sync ─────────────────────────────────────
@@ -317,6 +351,116 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     applyRemoteSettings(await apiGetSettings());
   }
 
+  // ── Calories ──────────────────────────────────────────────
+  // The estimate is an online extra on top of an already-saved session: it runs
+  // after the local write, and a failure never blocks logging a workout.
+  async function runCalorieEstimate(sess: Session): Promise<Session | null> {
+    // The endpoint caps the payload at 50 exercises and 120-character names.
+    const posted = sess.exercises.filter(e => e.sets.length > 0).slice(0, 50);
+    if (!posted.length) return null;
+
+    const inRange = (n: number, lo: number, hi: number) => (n >= lo && n <= hi ? n : null);
+    const durationSec = Math.min(86400, Math.max(1, Math.round(sess.durationSec)));
+    setCaloriesPending(sess.id);
+    try {
+      const est = await apiWorkoutCalories({
+        sessionId: sess.id,
+        routineName: sess.routineName.slice(0, 120),
+        durationSec,
+        exercises: posted.map(e => ({
+          name: e.name.slice(0, 120),
+          sets: e.sets.map(s => ({ reps: s.reps, kg: s.kg })),
+        })),
+        profile: {
+          weightKg: profile.weightKg,
+          heightCm: inRange(profile.heightCm, 50, 300),
+          age: inRange(profile.age, 5, 120),
+          gender: profile.gender || null,
+        },
+      });
+
+      // The backend answers one entry per posted exercise, in the posted order.
+      const byId = new Map<string, number>();
+      est.exercises.forEach((e, i) => {
+        const local = posted[i];
+        if (local) byId.set(local.id, e.calories);
+      });
+
+      await saveSessionCaloriesDb(
+        sess.id, est.totalCalories, est.summary,
+        [...byId].map(([id, calories]) => ({ id, calories })),
+      );
+
+      const updated: Session = {
+        ...sess,
+        calories: est.totalCalories,
+        caloriesSummary: est.summary,
+        exercises: sess.exercises.map(e => (byId.has(e.id) ? { ...e, calories: byId.get(e.id)! } : e)),
+      };
+      setRecentHistory(h => h.map(s => (s.id === updated.id ? updated : s)));
+      setDetail(d => (d && d.id === updated.id ? updated : d));
+      return updated;
+    } finally {
+      setCaloriesPending(null);
+    }
+  }
+
+  /** Body weight is the one input the MET formula cannot work without. */
+  const canEstimateCalories = () => profile.weightKg >= 20 && profile.weightKg <= 500;
+
+  // ── Backfill for pre-existing history ─────────────────────
+  // Sessions logged before the calorie estimator existed have no estimate. Walk
+  // them newest-first, pacing well under the endpoint's 20-req/min LLM limit.
+  // User-triggered from Settings; a session that gets an estimate drops out of
+  // the query, so an interrupted run simply resumes where it left off.
+  const BACKFILL_DELAY_MS = 4500;
+  const BACKFILL_BATCH = 25;
+  const backfillRunning = useRef(false);
+
+  async function runCaloriesBackfill(): Promise<void> {
+    if (backfillRunning.current) return;
+    backfillRunning.current = true;
+    let attempted = 0;
+    let succeeded = 0;
+    try {
+      const total = await countSessionsMissingCalories();
+      if (!total) return;
+      setBackfill({ done: 0, total });
+
+      for (;;) {
+        // Skipped sessions stay in the query and, being newer than anything not
+        // yet reached, sit at its head — so offsetting past them lands on the
+        // next unattempted session.
+        const batch = await loadSessionsMissingCalories(BACKFILL_BATCH, failedBackfillIds.current.size);
+        const pending = batch.filter(s => !failedBackfillIds.current.has(s.id));
+        if (!pending.length) break;
+
+        for (const sess of pending) {
+          if (attempted > 0) await sleep(BACKFILL_DELAY_MS);
+          try {
+            const updated = await runCalorieEstimate(sess);
+            if (updated) succeeded++; else failedBackfillIds.current.add(sess.id);
+          } catch (err) {
+            // Rate limit, server trouble or no connection: stop and resume later.
+            // A 4xx means this session will never estimate — skip it and move on.
+            const status = err instanceof ApiError ? err.status : 0;
+            if (status === 0 || status === 429 || status >= 500) return;
+            failedBackfillIds.current.add(sess.id);
+          }
+          attempted++;
+          setBackfill({ done: attempted, total });
+        }
+      }
+    } finally {
+      backfillRunning.current = false;
+      setBackfill(null);
+      if (succeeded) {
+        await refreshRecentData();
+        toast({ icon: 'flame', msg: `Calories estimated for ${succeeded} past ${succeeded === 1 ? 'workout' : 'workouts'}` });
+      }
+    }
+  }
+
   // ── Theme ─────────────────────────────────────────────────
   const systemScheme = useColorScheme();
   const resolvedThemeName = themeName === 'system' ? (systemScheme ?? 'dark') : themeName;
@@ -351,6 +495,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     doneDays,
     lastMeasurement,
     physiquePhotos,
+    bodyLogs,
 
     // Async data loaders
     loadMoreSessions: (limit, offset) => loadSessionPage(limit, offset),
@@ -413,13 +558,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSessionResumeData(inProgressSession);
       setSessionOn(true);
     },
-    updateInProgressSession: (exercises: any[]) => {
+    updateInProgressSession: (exercises: any[], openIds?: string[]) => {
       const data: InProgressSession = {
         startedAt: sessionStartedAtRef.current,
         lastActiveAt: Date.now(),
         routineId: sessionRoutine?.id || null,
         routineName: sessionRoutine?.name || 'Free Workout',
         exercises,
+        openIds,
       };
       setInProgressSession(data);
       saveInProgressSessionDb(data).catch(() => {});
@@ -436,10 +582,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSessionOn(false); setSessionRoutine(null); setSessionResumeData(null); setActiveTab('home');
       setInProgressSession(null); clearInProgressSessionDb().catch(() => {});
       await refreshRecentData();
-      if (authUser) mirror(apiSaveSession(sess));
       toast({ icon: 'check', msg: 'Session saved!' });
+      if (authUser) {
+        mirror(apiSaveSession(sess));
+        if (canEstimateCalories()) {
+          runCalorieEstimate(sess)
+            .then(updated => {
+              if (updated?.calories) toast({ icon: 'flame', msg: `${updated.calories} kcal burnt` });
+            })
+            .catch(() => {});
+        }
+      }
     },
     inProgressSession, sessionResumeData,
+
+    estimateCalories: async (s) => {
+      if (!authUser) {
+        toast({ icon: 'cloud', msg: 'Sign in to estimate calories' });
+        return null;
+      }
+      if (!canEstimateCalories()) {
+        toast({ icon: 'info', tone: 'danger', msg: 'Set your body weight in Settings first' });
+        return null;
+      }
+      try {
+        const updated = await runCalorieEstimate(s);
+        if (!updated) {
+          toast({ icon: 'info', tone: 'danger', msg: 'No logged sets to estimate from' });
+          return null;
+        }
+        toast({ icon: 'flame', msg: `${updated.calories} kcal burnt` });
+        return updated;
+      } catch (err) {
+        toast({ icon: 'info', tone: 'danger', msg: err instanceof ApiError ? err.message : 'Could not estimate calories' });
+        return null;
+      }
+    },
+    caloriesPending,
+    caloriesBackfill: backfill,
+    countMissingCalories: () => countSessionsMissingCalories(),
+    backfillCalories: async () => {
+      if (backfillRunning.current) return;
+      if (!authUser) { toast({ icon: 'cloud', msg: 'Sign in to estimate calories' }); return; }
+      if (!canEstimateCalories()) {
+        toast({ icon: 'info', tone: 'danger', msg: 'Set your body weight in Settings first' });
+        return;
+      }
+      // An explicit retry, including of sessions that failed on an earlier run.
+      failedBackfillIds.current.clear();
+      await runCaloriesBackfill();
+    },
 
     editRoutine: (r) => setRoutineEdit(r === null ? null : r),
     closeRoutineEdit: () => setRoutineEdit(undefined),
@@ -475,6 +667,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLastMeasurement(m);
       if (authUser) mirror(apiSaveMeasurement(m));
       toast({ icon: 'check', msg: 'Measurement logged' });
+    },
+
+    saveBodyLog: async ({ id, at, values }) => {
+      const cmValues: Partial<Record<BodyPart, number>> = {};
+      for (const [part, v] of Object.entries(values) as [BodyPart, number | undefined][]) {
+        if (v != null && v > 0) cmValues[part] = fmt.toCm(v);
+      }
+      if (!Object.keys(cmValues).length) return;
+      const log: BodyLog = { id: id ?? uid(), at: at ?? Date.now(), values: cmValues };
+      await saveBodyLogDb(log);
+      setBodyLogs(prev => [...prev.filter(l => l.id !== log.id), log].sort((a, b) => a.at - b.at));
+      toast({ icon: 'check', msg: id ? 'Measurements updated' : 'Measurements logged' });
+    },
+    deleteBodyLog: async (id) => {
+      await deleteBodyLogDb(id);
+      setBodyLogs(prev => prev.filter(l => l.id !== id));
+      toast({ icon: 'trash', tone: 'danger', msg: 'Measurements deleted' });
     },
 
     addPhysiquePhotos: async (shots, note = '') => {
@@ -557,10 +766,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await database.runAsync('DELETE FROM measurements');
         await database.runAsync('DELETE FROM physique_photos');
         await database.runAsync('DELETE FROM personal_records');
+        await database.runAsync('DELETE FROM body_log_values');
+        await database.runAsync('DELETE FROM body_logs');
       });
       for (const p of physiquePhotos) deletePhotoFile(p.file);
       setRoutines([]); setRecentHistory([]); setTotalSessions(0); setWeekCount(0);
-      setDoneDays(new Set()); setLastMeasurement(null); setPhysiquePhotos([]); setPersonalRecords({});
+      setDoneDays(new Set()); setLastMeasurement(null); setPhysiquePhotos([]); setPersonalRecords({}); setBodyLogs([]);
       toast({ icon: 'trash', tone: 'danger', msg: 'All data cleared' });
       setActiveTab('home');
     },

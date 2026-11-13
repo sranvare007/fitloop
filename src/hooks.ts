@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Keyboard, Platform } from 'react-native';
 
 const SEARCH_URL = 'http://fitloop-backend-production.up.railway.app/api/v1/exercises/search';
 
@@ -36,4 +37,21 @@ export function useExerciseSearch(query: string) {
   }, [query]);
 
   return { results, loading };
+}
+
+export function useKeyboardVisible(): boolean {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // iOS fires the "will" events in step with the keyboard animation; Android only has "did".
+    const show = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hide = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const subs = [
+      Keyboard.addListener(show, () => setVisible(true)),
+      Keyboard.addListener(hide, () => setVisible(false)),
+    ];
+    return () => subs.forEach(s => s.remove());
+  }, []);
+
+  return visible;
 }
