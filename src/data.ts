@@ -171,3 +171,78 @@ export function dayLabel(days: number[]): string {
   if (days.length === 7) return 'Every day';
   return [1,2,3,4,5,6,0].filter(d => days.includes(d)).map(d => DAYS[d]).join(', ');
 }
+
+// ── Lock-screen session widget ────────────────────────────────
+// The native widget (iOS Live Activity / Android ongoing notification) keeps
+// its own copy of the in-progress session so its buttons work while JS is not
+// running. `w` is in the display unit, exactly as the session screen holds it.
+export type WidgetSet = { reps: number; w: number; done: boolean };
+export type WidgetExercise = { id: string; name: string; sets: WidgetSet[] };
+export type WidgetSnapshot = {
+  startedAt: number;
+  lastActiveAt: number;
+  routineName: string;
+  unit: string;
+  /** Bumped by every change made from the widget itself. */
+  rev: number;
+  cursorId: string | null;
+  exercises: WidgetExercise[];
+};
+export type SessionFocus = { exId: string; set: number; field: 'reps' | 'kg' };
+
+type SessionExerciseLike = { id: string; name: string; sets: { reps: unknown; w: unknown; done?: boolean }[] };
+
+export function toWidgetExercises(exs: SessionExerciseLike[]): WidgetExercise[] {
+  return exs.map(e => ({
+    id: e.id,
+    name: e.name,
+    sets: e.sets.map(s => ({ reps: Number(s.reps) || 0, w: Number(s.w) || 0, done: !!s.done })),
+  }));
+}
+
+/**
+ * Fold sets ticked from the widget back into session exercises. The widget can
+ * only mark sets done, so this never un-ticks anything. Returns the same array
+ * when nothing changed so callers can skip a state update.
+ */
+export function mergeWidgetDone<E extends { id: string; sets: { done?: boolean }[] }>(exs: E[], snapshot: WidgetSnapshot): E[] {
+  const byId = new Map(snapshot.exercises.map(e => [e.id, e]));
+  let changed = false;
+  const out = exs.map(e => {
+    const w = byId.get(e.id);
+    if (!w) return e;
+    let touched = false;
+    const sets = e.sets.map((s, i) => {
+      if (s.done || !w.sets[i]?.done) return s;
+      touched = true;
+      return { ...s, done: true };
+    });
+    if (!touched) return e;
+    changed = true;
+    return { ...e, sets };
+  });
+  return changed ? out : exs;
+}
+
+/** The exercise whose sets differ between two versions of a session, if exactly one does. */
+export function changedExerciseId(prev: SessionExerciseLike[], next: SessionExerciseLike[]): string | null {
+  const before = new Map(prev.map(e => [e.id, JSON.stringify(e.sets)]));
+  const changed = next.filter(e => before.has(e.id) && before.get(e.id) !== JSON.stringify(e.sets));
+  return changed.length === 1 ? changed[0].id : null;
+}
+
+export const SESSION_LINK = 'fitloop://session';
+
+/** Parses `fitloop://session[?ex=<id>&set=<n>&field=reps|kg]`. `null` = not a session link. */
+export function parseSessionLink(url: string | null | undefined): { focus: SessionFocus | null } | null {
+  if (!url || !url.startsWith(SESSION_LINK)) return null;
+  const query = url.split('?')[1] ?? '';
+  const params: Record<string, string> = {};
+  for (const pair of query.split('&')) {
+    const [k, v] = pair.split('=');
+    if (k) params[k] = decodeURIComponent(v ?? '');
+  }
+  const set = parseInt(params.set ?? '', 10);
+  if (!params.ex || Number.isNaN(set)) return { focus: null };
+  return { focus: { exId: params.ex, set, field: params.field === 'reps' ? 'reps' : 'kg' } };
+}

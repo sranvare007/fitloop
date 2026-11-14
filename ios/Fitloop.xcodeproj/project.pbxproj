@@ -7,29 +7,75 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		012B9F781141A52F194857D4 /* SessionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565A89FA54B7478CE5FD548D /* SessionIntents.swift */; };
+		06129647B4D9D7DB53E0CE8A /* FitloopWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4BD35751A4700629D7FC62B /* FitloopWidgetsBundle.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		143C8D09C3C1757B8AAA6C9D /* SessionWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98368EDAEF794F88E55CA5F2 /* SessionWidgetStore.swift */; };
+		30D9B934AA522961E48057C6 /* SessionWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98368EDAEF794F88E55CA5F2 /* SessionWidgetStore.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		A358DD2D68C4BBE0386590A4 /* FitloopWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6D715E5F9056FFC950952095 /* FitloopWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B2FB337D7439257B1DFD3606 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 64703DEF3F9CED84ABE2ECB5 /* PrivacyInfo.xcprivacy */; };
 		B9CE6F0AFEA796E645726166 /* libPods-Fitloop.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8CC5E68ED889332B391927CD /* libPods-Fitloop.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		C16C2C4DF3A809DC6639326D /* SessionLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3547744BC8EEFF493794F2F /* SessionLiveActivity.swift */; };
+		C221197A8F910B6C47392823 /* SessionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565A89FA54B7478CE5FD548D /* SessionIntents.swift */; };
+		C7A5F20871FBC42717628AB5 /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36275B2347F9B08559F9D345 /* SessionActivityAttributes.swift */; };
+		D8F92A109B7C2A2641BA079E /* SessionWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B28510196531696B8E0FEBF /* SessionWidget.swift */; };
+		DF19FFF442C86EE9D0ADEE3A /* SessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36275B2347F9B08559F9D345 /* SessionActivityAttributes.swift */; };
+		E10A3B36A57CC10ADC47374A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3416DB5186BAB9A6AD397AC5 /* Foundation.framework */; };
+		EAD937391289088B6FC3FB8B /* SessionWidget.m in Sources */ = {isa = PBXBuildFile; fileRef = 63A2B8E58AF3A0CE02F15D35 /* SessionWidget.m */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		F415EECB1A0D3ABC2942D201 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD746A46BA60CA3D751595A /* ExpoModulesProvider.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		63FBA612E413FDCBF7E3743D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 23929E66ADAE32F84F484E37;
+			remoteInfo = FitloopWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		712DDB60194D278B6381B5B8 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A358DD2D68C4BBE0386590A4 /* FitloopWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		13B07F961A680F5B00A75B9A /* Fitloop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fitloop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Fitloop/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Fitloop/Info.plist; sourceTree = "<group>"; };
+		1B28510196531696B8E0FEBF /* SessionWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionWidget.swift; sourceTree = "<group>"; };
+		3416DB5186BAB9A6AD397AC5 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		36275B2347F9B08559F9D345 /* SessionActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionActivityAttributes.swift; sourceTree = "<group>"; };
+		565A89FA54B7478CE5FD548D /* SessionIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionIntents.swift; sourceTree = "<group>"; };
 		5AD746A46BA60CA3D751595A /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Fitloop/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		64703DEF3F9CED84ABE2ECB5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Fitloop/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		63A2B8E58AF3A0CE02F15D35 /* SessionWidget.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = SessionWidget.m; sourceTree = "<group>"; };
+		64703DEF3F9CED84ABE2ECB5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Fitloop/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		6D715E5F9056FFC950952095 /* FitloopWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FitloopWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8CC5E68ED889332B391927CD /* libPods-Fitloop.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Fitloop.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		98368EDAEF794F88E55CA5F2 /* SessionWidgetStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionWidgetStore.swift; sourceTree = "<group>"; };
+		A4BD35751A4700629D7FC62B /* FitloopWidgetsBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FitloopWidgetsBundle.swift; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Fitloop/SplashScreen.storyboard; sourceTree = "<group>"; };
+		B3547744BC8EEFF493794F2F /* SessionLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionLiveActivity.swift; sourceTree = "<group>"; };
 		B8C5403F81C539E5F4E3092E /* Pods-Fitloop.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Fitloop.debug.xcconfig"; path = "Target Support Files/Pods-Fitloop/Pods-Fitloop.debug.xcconfig"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		C412273643A0EAE9C7967BA8 /* Pods-Fitloop.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Fitloop.release.xcconfig"; path = "Target Support Files/Pods-Fitloop/Pods-Fitloop.release.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Fitloop/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Fitloop-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Fitloop-Bridging-Header.h"; path = "Fitloop/Fitloop-Bridging-Header.h"; sourceTree = "<group>"; };
+		F2D7AE12438071CFD070FF0C /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,16 +87,31 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AF606E13F863F8299BD22573 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E10A3B36A57CC10ADC47374A /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0659B620DABF240DACBEBAB3 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				3416DB5186BAB9A6AD397AC5 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
 		0CFA7513C8E959823227FB17 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
 				B8C5403F81C539E5F4E3092E /* Pods-Fitloop.debug.xcconfig */,
 				C412273643A0EAE9C7967BA8 /* Pods-Fitloop.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -64,6 +125,7 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				64703DEF3F9CED84ABE2ECB5 /* PrivacyInfo.xcprivacy */,
+				6FA44ED52BDA25B77849FF9D /* SessionWidget */,
 			);
 			name = Fitloop;
 			sourceTree = "<group>";
@@ -81,6 +143,7 @@
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				8CC5E68ED889332B391927CD /* libPods-Fitloop.a */,
+				0659B620DABF240DACBEBAB3 /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -91,6 +154,16 @@
 				5AD746A46BA60CA3D751595A /* ExpoModulesProvider.swift */,
 			);
 			name = Fitloop;
+			sourceTree = "<group>";
+		};
+		6FA44ED52BDA25B77849FF9D /* SessionWidget */ = {
+			isa = PBXGroup;
+			children = (
+				1B28510196531696B8E0FEBF /* SessionWidget.swift */,
+				63A2B8E58AF3A0CE02F15D35 /* SessionWidget.m */,
+			);
+			name = SessionWidget;
+			path = Fitloop/SessionWidget;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -109,6 +182,8 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				0CFA7513C8E959823227FB17 /* Pods */,
 				23E2828D7E96C7A0E084BF86 /* ExpoModulesProviders */,
+				D06B2C12636EE7B6EFE7D58C /* SessionWidgetShared */,
+				E24E99BAD737988317B8B06F /* FitloopWidgets */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -119,6 +194,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* Fitloop.app */,
+				6D715E5F9056FFC950952095 /* FitloopWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -130,6 +206,28 @@
 			);
 			name = Supporting;
 			path = Fitloop/Supporting;
+			sourceTree = "<group>";
+		};
+		D06B2C12636EE7B6EFE7D58C /* SessionWidgetShared */ = {
+			isa = PBXGroup;
+			children = (
+				36275B2347F9B08559F9D345 /* SessionActivityAttributes.swift */,
+				98368EDAEF794F88E55CA5F2 /* SessionWidgetStore.swift */,
+				565A89FA54B7478CE5FD548D /* SessionIntents.swift */,
+			);
+			name = SessionWidgetShared;
+			path = SessionWidgetShared;
+			sourceTree = "<group>";
+		};
+		E24E99BAD737988317B8B06F /* FitloopWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				A4BD35751A4700629D7FC62B /* FitloopWidgetsBundle.swift */,
+				B3547744BC8EEFF493794F2F /* SessionLiveActivity.swift */,
+				F2D7AE12438071CFD070FF0C /* Info.plist */,
+			);
+			name = FitloopWidgets;
+			path = FitloopWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -144,6 +242,7 @@
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
+				712DDB60194D278B6381B5B8 /* Embed Foundation Extensions */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				5A5E93551BEB4EE3A5B74248 /* [Expo Dev Launcher] Strip Local Network Keys for Release */,
@@ -152,11 +251,29 @@
 			buildRules = (
 			);
 			dependencies = (
+				1ED4263A53A9091B3C1613F5 /* PBXTargetDependency */,
 			);
 			name = Fitloop;
 			productName = Fitloop;
 			productReference = 13B07F961A680F5B00A75B9A /* Fitloop.app */;
 			productType = "com.apple.product-type.application";
+		};
+		23929E66ADAE32F84F484E37 /* FitloopWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0183F962CA2BAF01743B220C /* Build configuration list for PBXNativeTarget "FitloopWidgets" */;
+			buildPhases = (
+				44DE6460033998CEAA89E182 /* Sources */,
+				AF606E13F863F8299BD22573 /* Frameworks */,
+				FD313CDC42EBBF55013EC2B5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FitloopWidgets;
+			productName = FitloopWidgets;
+			productReference = 6D715E5F9056FFC950952095 /* FitloopWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -185,6 +302,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* Fitloop */,
+				23929E66ADAE32F84F484E37 /* FitloopWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -198,6 +316,13 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				B2FB337D7439257B1DFD3606 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FD313CDC42EBBF55013EC2B5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -360,10 +485,36 @@
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				F415EECB1A0D3ABC2942D201 /* ExpoModulesProvider.swift in Sources */,
+				D8F92A109B7C2A2641BA079E /* SessionWidget.swift in Sources */,
+				EAD937391289088B6FC3FB8B /* SessionWidget.m in Sources */,
+				DF19FFF442C86EE9D0ADEE3A /* SessionActivityAttributes.swift in Sources */,
+				30D9B934AA522961E48057C6 /* SessionWidgetStore.swift in Sources */,
+				012B9F781141A52F194857D4 /* SessionIntents.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		44DE6460033998CEAA89E182 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				06129647B4D9D7DB53E0CE8A /* FitloopWidgetsBundle.swift in Sources */,
+				C16C2C4DF3A809DC6639326D /* SessionLiveActivity.swift in Sources */,
+				C7A5F20871FBC42717628AB5 /* SessionActivityAttributes.swift in Sources */,
+				143C8D09C3C1757B8AAA6C9D /* SessionWidgetStore.swift in Sources */,
+				C221197A8F910B6C47392823 /* SessionIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1ED4263A53A9091B3C1613F5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = FitloopWidgets;
+			target = 23929E66ADAE32F84F484E37 /* FitloopWidgets */;
+			targetProxy = 63FBA612E413FDCBF7E3743D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -431,6 +582,57 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
+		};
+		1F90F7082464A082E65EBFCF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FitloopWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fitloop.app.FitloopWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		6FD5BE5D69965DADE2BF2188 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FitloopWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fitloop.app.FitloopWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
 		};
 		83CBBA201A601CBA00E9B192 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -557,6 +759,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0183F962CA2BAF01743B220C /* Build configuration list for PBXNativeTarget "FitloopWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1F90F7082464A082E65EBFCF /* Release */,
+				6FD5BE5D69965DADE2BF2188 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Fitloop" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

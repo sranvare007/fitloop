@@ -7,7 +7,7 @@ import { useApp } from '../context';
 import { Btn, IconBtn, Chip, Sheet, MenuRow, Stat, Switch, ExerciseSearchList, AppText as Text, AppTextInput as TextInput } from '../components/Shared';
 import { useExerciseSearch } from '../hooks';
 import { Icon, DotsMenu } from '../components/Icon';
-import { Routine, fmtClock, fmtDur, uid, sessionVolume, sessionSets } from '../data';
+import { Routine, fmtClock, fmtDur, uid, sessionVolume, sessionSets, mergeWidgetDone } from '../data';
 import { Theme } from '../theme';
 
 const ABANDON_GAP_MS = 20 * 60 * 1000;
@@ -411,7 +411,7 @@ function StepRow({ label, t, onMinus, onPlus }: { label: string; t: Theme; onMin
 }
 
 export function SessionScreen({ routine, onExit, onSave, resumeData, onBackRequest }: { routine: Routine | null; onExit: () => void; onSave: (data: any) => void; resumeData?: { startedAt: number; lastActiveAt?: number; exercises: any[]; openIds?: string[] } | null; onBackRequest?: React.MutableRefObject<(() => boolean) | null> }) {
-  const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine, openPhysiqueCamera, minimizeSession, pbFor, personalRecords, savePR } = useApp();
+  const { t, fmt, toast, updateInProgressSession, loadSetBests, saveRoutine, openPhysiqueCamera, minimizeSession, pbFor, personalRecords, savePR, widgetSync, sessionFocus, clearSessionFocus } = useApp();
   const insets = useSafeAreaInsets();
 
   const mkEx = (name: string, withSets: boolean) => {
@@ -537,6 +537,25 @@ export function SessionScreen({ routine, onExit, onSave, resumeData, onBackReque
     persistTimer.current = setTimeout(() => updateInProgressSession(exs, [...openIds]), 400);
     return () => { if (persistTimer.current) clearTimeout(persistTimer.current); };
   }, [exs, openIds]);
+
+  // Sets ticked on the lock-screen widget while this screen is mounted.
+  // Changes from before mount are already part of `resumeData`; replaying them
+  // would re-tick a set the user has since unticked.
+  const widgetSeqRef = useRef(widgetSync?.seq ?? 0);
+  useEffect(() => {
+    if (!widgetSync || widgetSync.seq <= widgetSeqRef.current) return;
+    widgetSeqRef.current = widgetSync.seq;
+    setExs(prev => mergeWidgetDone(prev, widgetSync.snapshot));
+  }, [widgetSync?.seq]);
+
+  // The widget's reps / weight values open that set here with the keypad up.
+  useEffect(() => {
+    if (!sessionFocus) return;
+    const ei = exs.findIndex((e: any) => e.id === sessionFocus.exId);
+    clearSessionFocus();
+    if (ei < 0 || !exs[ei].sets[sessionFocus.set]) return;
+    openEx(exs[ei].id); setEditKey(`${ei}:${sessionFocus.set}`); setField(sessionFocus.field); setFresh(true);
+  }, [sessionFocus]);
 
   // Detect an abandoned session: a long gap since the last logged set on resume,
   // or the app being backgrounded for a long stretch mid-session.

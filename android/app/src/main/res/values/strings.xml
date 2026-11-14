@@ -3,4 +3,16 @@
   <string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
   <string name="expo_runtime_version">1.0.0</string>
+  <string name="session_widget_channel">Workout in progress</string>
+  <string name="session_widget_prev">Previous exercise</string>
+  <string name="session_widget_next">Next exercise</string>
+  <string name="session_widget_done">Mark set done</string>
+  <string name="session_widget_prev_label">‹  Prev</string>
+  <string name="session_widget_next_label">Next  ›</string>
+  <string name="session_widget_done_label">✓  Done</string>
+  <string name="session_widget_no_sets">No sets yet — tap to add in the app</string>
+  <string name="session_widget_all_done">All %1$d sets done</string>
+  <string name="session_widget_set_summary">Set %1$d of %2$d · %3$s × %4$s %5$s</string>
+  <string name="session_widget_set_label">Set %1$d of %2$d · exercise %3$s</string>
+  <string name="session_widget_reps">%1$s reps</string>
 </resources>

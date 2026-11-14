@@ -1,11 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, AppState as RNAppState, Linking } from 'react-native';
 import { makeTheme, Theme } from './theme';
 import {
   Profile, Routine, Session, Measurement, FmtHelper, Override, GymSchedule,
   PhysiquePhoto, PhysiquePose, BodyLog, BodyPart,
   makeFmt, sessionVolume, uid, LB, DAY_MS, SEED_PB,
+  WidgetSnapshot, SessionFocus, toWidgetExercises, mergeWidgetDone, changedExerciseId, parseSessionLink,
 } from './data';
+import {
+  syncSessionWidget, endSessionWidget, getSessionWidgetSnapshot, onSessionWidgetChange, ensureSessionWidgetPermission,
+} from './sessionWidget';
 import { persistPhoto, photoUri, deletePhotoFile } from './photos';
 import {
   AuthUser, AuthResult, ApiError, setAuthToken,
@@ -114,6 +118,11 @@ export interface AppContextValue {
   updateInProgressSession: (exercises: any[], openIds?: string[]) => void;
   inProgressSession: InProgressSession | null;
   sessionResumeData: InProgressSession | null;
+  /** Latest change made from the lock-screen widget; `seq` bumps on each one. */
+  widgetSync: { seq: number; snapshot: WidgetSnapshot } | null;
+  /** A set the widget asked the session screen to open for editing. */
+  sessionFocus: SessionFocus | null;
+  clearSessionFocus: () => void;
   editRoutine: (r: Routine | null) => void;
   closeRoutineEdit: () => void;
   saveRoutine: (r: Routine) => void;
@@ -220,6 +229,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [inProgressSession, setInProgressSession] = useState<InProgressSession | null>(null);
   const [sessionResumeData, setSessionResumeData] = useState<InProgressSession | null>(null);
   const sessionStartedAtRef = useRef(0);
+
+  // Lock-screen widget. Refs mirror the state the long-lived listeners below
+  // need, so they never act on a stale closure.
+  const ipsRef = useRef<InProgressSession | null>(null);
+  const unitRef = useRef<'kg' | 'lbs'>('kg');
+  const widgetRevRef = useRef(0);
+  const widgetQueue = useRef<Promise<void>>(Promise.resolve());
+  const [widgetSync, setWidgetSync] = useState<{ seq: number; snapshot: WidgetSnapshot } | null>(null);
+  const [sessionFocus, setSessionFocus] = useState<SessionFocus | null>(null);
+  const [sessionLink, setSessionLink] = useState<{ seq: number; focus: SessionFocus | null } | null>(null);
+
+  const commitIps = (ips: InProgressSession | null) => {
+    ipsRef.current = ips;
+    setInProgressSession(ips);
+    if (ips) saveInProgressSessionDb(ips).catch(() => {});
+    else clearInProgressSessionDb().catch(() => {});
+  };
+
+  /** Fold sets ticked on the widget into the in-progress session. */
+  const applyWidgetSnapshot = (snapshot: WidgetSnapshot) => {
+    const cur = ipsRef.current;
+    if (!cur || cur.startedAt !== snapshot.startedAt) return;
+    widgetRevRef.current = snapshot.rev;
+    const merged = mergeWidgetDone(cur.exercises, snapshot);
+    if (merged === cur.exercises) return;
+    commitIps({ ...cur, exercises: merged, lastActiveAt: Math.max(cur.lastActiveAt, snapshot.lastActiveAt) });
+    setWidgetSync(prev => ({ seq: (prev?.seq ?? 0) + 1, snapshot }));
+  };
+
+  // Syncs run one at a time: each needs the rev the previous one settled on.
+  const pushWidget = (focusId?: string | null) => {
+    widgetQueue.current = widgetQueue.current.then(async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const ips = ipsRef.current;
+        if (!ips || !ips.exercises.length) return;
+        const res = await syncSessionWidget({
+          startedAt: ips.startedAt,
+          lastActiveAt: ips.lastActiveAt,
+          routineName: ips.routineName,
+          unit: unitRef.current,
+          exercises: toWidgetExercises(ips.exercises),
+          focusId,
+        }, widgetRevRef.current);
+        if (!res) return;
+        if (res.ok) { widgetRevRef.current = res.rev; return; }
+        applyWidgetSnapshot(res.snapshot);
+      }
+    });
+  };
+
+  const stopWidget = () => {
+    widgetRevRef.current = 0;
+    widgetQueue.current = widgetQueue.current.then(() => endSessionWidget());
+  };
   const [routineEdit, setRoutineEdit] = useState<Routine | null | undefined>(undefined);
   const [detail, setDetail] = useState<Session | null>(null);
   const [toastState, setToastState] = useState<ToastConfig | null>(null);
@@ -245,8 +308,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       setPersonalRecords(await loadPersonalRecords());
 
-      const ips = await loadInProgressSessionDb();
+      unitRef.current = s.unit;
+      let ips = await loadInProgressSessionDb();
+      // Sets ticked on the lock screen while the app was not running exist
+      // only in the widget's copy — fold them in before anything reads `ips`.
+      const snap = await getSessionWidgetSnapshot();
+      if (ips && snap && snap.startedAt === ips.startedAt) {
+        widgetRevRef.current = snap.rev;
+        const merged = mergeWidgetDone(ips.exercises, snap);
+        if (merged !== ips.exercises) {
+          ips = { ...ips, exercises: merged, lastActiveAt: Math.max(ips.lastActiveAt, snap.lastActiveAt) };
+          await saveInProgressSessionDb(ips);
+        }
+      } else if (snap && !ips) {
+        endSessionWidget();
+      }
+      ipsRef.current = ips;
       setInProgressSession(ips);
+      if (ips) { ensureSessionWidgetPermission(); pushWidget(); }
 
       if (ips) {
         sessionStartedAtRef.current = ips.startedAt;
@@ -271,6 +350,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLoaded(true);
     })();
   }, []);
+
+  useEffect(() => { unitRef.current = unit; }, [unit]);
+
+  // Pick up widget changes as they happen (app alive in the background) and
+  // whenever the app returns to the foreground (it was suspended meanwhile).
+  useEffect(() => {
+    if (!loaded) return;
+    const offChange = onSessionWidgetChange(applyWidgetSnapshot);
+    const appSub = RNAppState.addEventListener('change', async (state) => {
+      if (state !== 'active' || !ipsRef.current) return;
+      const snap = await getSessionWidgetSnapshot();
+      if (snap && snap.rev !== widgetRevRef.current) applyWidgetSnapshot(snap);
+    });
+    let seq = 0;
+    const onUrl = (url: string | null) => {
+      const link = parseSessionLink(url);
+      if (link) setSessionLink({ seq: ++seq, focus: link.focus });
+    };
+    Linking.getInitialURL().then(onUrl).catch(() => {});
+    const linkSub = Linking.addEventListener('url', e => onUrl(e.url));
+    return () => { offChange(); appSub.remove(); linkSub.remove(); };
+  }, [loaded]);
+
+  // A widget tap opens the session (resuming it if minimised) and, when it
+  // names a set, hands that set to the session screen to edit.
+  useEffect(() => {
+    if (!sessionLink || !inProgressSession) return;
+    if (!sessionOn) {
+      sessionStartedAtRef.current = inProgressSession.startedAt;
+      setSessionRoutine(inProgressSession.routineId ? routines.find(r => r.id === inProgressSession.routineId) ?? null : null);
+      setSessionResumeData(inProgressSession);
+      setSessionOn(true);
+    }
+    if (sessionLink.focus) setSessionFocus(sessionLink.focus);
+  }, [sessionLink]);
 
   async function refreshRecentData() {
     const recent = await loadRecentSessions(20);
@@ -547,8 +661,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSessionResumeData(null);
       setSessionOn(true);
       const ips: InProgressSession = { startedAt: now, lastActiveAt: now, routineId: routine?.id || null, routineName: routine?.name || 'Free Workout', exercises: [] };
-      setInProgressSession(ips);
-      saveInProgressSessionDb(ips).catch(() => {});
+      widgetRevRef.current = 0;
+      commitIps(ips);
+      ensureSessionWidgetPermission();
     },
     resumeSession: () => {
       if (!inProgressSession) return;
@@ -567,12 +682,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         exercises,
         openIds,
       };
-      setInProgressSession(data);
-      saveInProgressSessionDb(data).catch(() => {});
+      const focusId = changedExerciseId(ipsRef.current?.exercises ?? [], exercises);
+      commitIps(data);
+      pushWidget(focusId);
     },
     exitSession: () => {
       setSessionOn(false); setSessionRoutine(null); setSessionResumeData(null);
-      setInProgressSession(null); clearInProgressSessionDb().catch(() => {});
+      commitIps(null); stopWidget();
     },
     minimizeSession: () => { setSessionOn(false); setSessionResumeData(null); },
     saveSession: async (data: any) => {
@@ -580,7 +696,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const sess: Session = { ...data, volume };
       await dbSaveSession(sess);
       setSessionOn(false); setSessionRoutine(null); setSessionResumeData(null); setActiveTab('home');
-      setInProgressSession(null); clearInProgressSessionDb().catch(() => {});
+      commitIps(null); stopWidget();
       await refreshRecentData();
       toast({ icon: 'check', msg: 'Session saved!' });
       if (authUser) {
@@ -595,6 +711,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     },
     inProgressSession, sessionResumeData,
+    widgetSync, sessionFocus,
+    clearSessionFocus: () => setSessionFocus(null),
 
     estimateCalories: async (s) => {
       if (!authUser) {
