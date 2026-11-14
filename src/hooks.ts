@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Keyboard, Platform } from 'react-native';
+import { API_BASE } from './api';
 
-const SEARCH_URL = 'http://fitloop-backend-production.up.railway.app/api/v1/exercises/search';
+const SEARCH_URL = `${API_BASE}/exercises/search`;
 
 export type ExerciseResult = {
   id: string;

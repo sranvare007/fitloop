@@ -11,7 +11,7 @@ import { Routine, Session, Measurement } from './data';
 
 // Deployed backend. Set API_BASE_OVERRIDE to null to fall back to a local dev
 // server (localhost on iOS simulator, 10.0.2.2 on Android emulator).
-const API_BASE_OVERRIDE: string | null = 'https://fitloop-backend-996514195662.us-central1.run.app';
+const API_BASE_OVERRIDE: string | null = 'https://fitloop-backend.vercel.app';
 const DEFAULT_HOST = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
 export const API_BASE = `${API_BASE_OVERRIDE ?? DEFAULT_HOST}/api/v1`;
 
